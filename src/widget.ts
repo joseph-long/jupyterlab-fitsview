@@ -77,6 +77,7 @@ export class FITSPanel extends Widget {
   private _sliceState: ISliceState | null = null;
   private _sliceControlsContainer: HTMLDivElement | null = null;
   private _fetchAbortController: AbortController | null = null;
+  private _viewerInitialized = false;
 
   constructor(context: DocumentRegistry.IContext<DocumentModel>) {
     super();
@@ -225,6 +226,7 @@ export class FITSPanel extends Widget {
 
     try {
       await viewarr.createViewer(this._viewerId);
+      this._viewerInitialized = true;
     } catch (error) {
       console.error('Failed to initialize viewarr:', error);
     }
@@ -385,11 +387,12 @@ export class FITSPanel extends Widget {
       const height = resultShape[resultShape.length - 2] || 1;
       const width = resultShape[resultShape.length - 1] || 1;
 
-      // Clear the prompt and show image
-      if (this._viewerContainer) {
+      // Only recreate the viewer on first load (to clear the loading prompt)
+      // Subsequent slice changes should preserve pan/zoom state
+      if (!this._viewerInitialized && this._viewerContainer) {
         this._viewerContainer.innerHTML = '';
-        // Recreate the canvas - viewer needs to be reinitialized
         await viewarr.createViewer(this._viewerId);
+        this._viewerInitialized = true;
       }
 
       viewarr.setImageData(this._viewerId, buffer, width, height, arrayType);

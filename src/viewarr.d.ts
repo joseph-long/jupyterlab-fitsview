@@ -7,6 +7,7 @@ declare module 'viewarr' {
 
   /**
    * Set image data for a viewer.
+   * Pan is reset if dimensions change; zoom is always preserved.
    */
   export function setImageData(
     containerId: string,

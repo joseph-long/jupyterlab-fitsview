@@ -48,8 +48,8 @@ fields = ["description", "authors", "urls", "keywords"]
 artifacts = ["fitsview/labextension"]
 exclude = [".github", "binder"]
 
-"jupyter-config/server-config" = "etc/jupyter/jupyter_server_config.d"
 [tool.hatch.build.targets.wheel.shared-data]
+"jupyter-config/server-config" = "etc/jupyter/jupyter_server_config.d"
 "fitsview/labextension" = "share/jupyter/labextensions/fitsview"
 "install.json" = "share/jupyter/labextensions/fitsview/install.json"
 
