@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="7" failures="0" errors="0" time="0.928">
+  <testsuite name="createTypedArray" errors="0" failures="0" skipped="0" timestamp="2026-01-14T16:30:19" time="0.479" tests="7">
+    <testcase classname="createTypedArray should create Float32Array for &lt;f4 dtype" name="createTypedArray should create Float32Array for &lt;f4 dtype" time="0.001">
+    </testcase>
+    <testcase classname="createTypedArray should create Float64Array for &lt;f8 dtype" name="createTypedArray should create Float64Array for &lt;f8 dtype" time="0">
+    </testcase>
+    <testcase classname="createTypedArray should create Int16Array for &lt;i2 dtype" name="createTypedArray should create Int16Array for &lt;i2 dtype" time="0.001">
+    </testcase>
+    <testcase classname="createTypedArray should create Int32Array for &lt;i4 dtype" name="createTypedArray should create Int32Array for &lt;i4 dtype" time="0">
+    </testcase>
+    <testcase classname="createTypedArray should create Uint8Array for &lt;u1 dtype" name="createTypedArray should create Uint8Array for &lt;u1 dtype" time="0">
+    </testcase>
+    <testcase classname="createTypedArray should strip byte order prefix and still work" name="createTypedArray should strip byte order prefix and still work" time="0">
+    </testcase>
+    <testcase classname="createTypedArray should default to Float64Array for unknown dtype" name="createTypedArray should default to Float64Array for unknown dtype" time="0">
+    </testcase>
+  </testsuite>
+</testsuites>

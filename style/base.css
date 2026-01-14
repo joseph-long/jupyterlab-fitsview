@@ -1,0 +1,80 @@
+/*
+    See the JupyterLab Developer Guide for useful CSS Patterns:
+
+    https://jupyterlab.readthedocs.io/en/stable/developer/css.html
+*/
+
+.jp-FITSViewer {
+  overflow: auto;
+  padding: 16px;
+  font-family: var(--jp-ui-font-family);
+}
+
+.jp-FITSViewer-content h2 {
+  margin-top: 0;
+  font-size: 1.2em;
+  color: var(--jp-ui-font-color0);
+}
+
+.jp-FITSViewer-content h3 {
+  font-size: 1em;
+  margin-bottom: 8px;
+  color: var(--jp-ui-font-color1);
+}
+
+.jp-FITSViewer-hdu {
+  margin-bottom: 24px;
+  padding: 12px;
+  background: var(--jp-layout-color1);
+  border-radius: 4px;
+  border: 1px solid var(--jp-border-color1);
+}
+
+.jp-FITSViewer-headerTable {
+  font-size: 0.85em;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+.jp-FITSViewer-headerTable td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--jp-border-color2);
+}
+
+.jp-FITSViewer-headerTable td:first-child {
+  font-weight: bold;
+  color: var(--jp-ui-font-color1);
+}
+
+.jp-FITSViewer-sliceButton {
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: var(--jp-brand-color1);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.jp-FITSViewer-sliceButton:hover {
+  background: var(--jp-brand-color0);
+}
+
+.jp-FITSViewer-sliceResult {
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--jp-layout-color2);
+  border-radius: 4px;
+  font-family: var(--jp-code-font-family);
+  font-size: 0.85em;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.jp-FITSViewer-error {
+  color: var(--jp-error-color1);
+  padding: 12px;
+  background: var(--jp-error-color3);
+  border-radius: 4px;
+}
