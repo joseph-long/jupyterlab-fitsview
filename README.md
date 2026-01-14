@@ -101,13 +101,40 @@ Returns a data slice as raw bytes in little-endian byte order, preserving the or
 - Python >= 3.10
 - Node.js >= 18
 - JupyterLab >= 4.0.0
+- Rust toolchain (for building viewarr)
+
+#### Building the viewarr Viewer Component
+
+This extension uses [viewarr](https://github.com/joseph-long/viewarr), a WebAssembly image viewer built with Rust and egui. It is included as a git submodule and must be built before the extension.
+
+**One-time setup:**
+```bash
+# Install wasm-pack if not already installed
+cargo install wasm-pack
+
+# Build the WebAssembly package (from the fitsview directory)
+cd viewarr
+npm run build
+cd ..
+```
+
+**Rebuilding after viewarr changes:**
+```bash
+# From the fitsview directory, use the convenience script:
+jlpm rebuild:viewarr
+```
+
+This runs `cargo clean -p viewarr && npm run build` in viewarr, copies the built package to `node_modules/viewarr`, and rebuilds the extension.
 
 #### Initial Setup
 
 ```bash
-# Clone the repository
-git clone <repository-url>
+# Clone the repository with submodules
+git clone --recurse-submodules <repository-url>
 cd fitsview
+
+# Or if already cloned without submodules:
+git submodule update --init --recursive
 
 # Create and activate a virtual environment
 python -m venv .venv
@@ -236,9 +263,22 @@ fitsview/
 │   └── handler.ts          # API client utilities
 ├── ui-tests/               # Playwright integration tests
 └── jupyter-config/         # Auto-enable configuration
+
+viewarr/ (external)         # WebAssembly image viewer
+├── src/                    # Rust source
+│   ├── app.rs              # egui App with pan/zoom/render
+│   ├── transform.rs        # Coordinate transforms
+│   └── lib.rs              # WASM bindings
+└── pkg/                    # Built wasm-pack output
 ```
 
 The extension uses a **Content Provider** pattern to prevent JupyterLab from downloading full file contents. Instead, the frontend widget makes targeted API calls to fetch only the metadata and data slices needed.
+
+The **viewarr** component is a Rust/WebAssembly viewer that provides:
+- Hardware-accelerated rendering via WebGL (through egui)
+- Pan and zoom with mouse/trackpad
+- FITS coordinate conventions (Y-axis origin at bottom)
+- Support for multiple data types (uint8, uint16, int16, float32, float64)
 
 ## AI Coding Assistant Support
 
