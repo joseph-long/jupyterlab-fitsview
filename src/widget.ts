@@ -5,7 +5,18 @@ import {
 } from '@jupyterlab/docregistry';
 import { Widget } from '@lumino/widgets';
 import { Message } from '@lumino/messaging';
-import { requestAPI, requestBinaryAPI, createTypedArray } from './handler';
+import { requestAPI, requestBinaryAPI, createTypedArray, ArrayType } from './handler';
+
+// Dynamically import viewarr for WASM viewer
+// Using dynamic import allows graceful degradation if viewarr isn't built
+let viewarr: typeof import('viewarr') | null = null;
+const viewarrPromise = import('viewarr')
+  .then(module => {
+    viewarr = module;
+  })
+  .catch(err => {
+    console.warn('viewarr module not available, image viewer disabled:', err);
+  });
 
 /**
  * FITS metadata response from the server
@@ -23,9 +34,9 @@ export interface IHDUInfo {
   index: number;
   name: string;
   type: string;
-  header: Record<string, any>;
+  header: string;  // Raw 80-column FITS header string
   shape: number[] | null;
-  dtype: string | null;
+  arrayType: ArrayType | null;
 }
 
 /**
@@ -36,13 +47,32 @@ export class FITSModel extends DocumentModel {
 }
 
 /**
+ * State for slice navigation on a single HDU
+ */
+interface ISliceState {
+  hduIndex: number;
+  shape: number[];
+  // Current index for each leading axis (all but last 2)
+  sliceIndices: number[];
+}
+
+/**
  * The FITS viewer panel widget
  */
 export class FITSPanel extends Widget {
+  private static _instanceCounter = 0;
+  private _viewerId: string;
+  private _viewerContainer: HTMLDivElement | null = null;
+  private _sliceState: ISliceState | null = null;
+  private _sliceControlsContainer: HTMLDivElement | null = null;
+
   constructor(context: DocumentRegistry.IContext<DocumentModel>) {
     super();
     this._context = context;
     this.addClass('jp-FITSViewer');
+
+    // Generate unique viewer ID
+    this._viewerId = `fitsview-${FITSPanel._instanceCounter++}`;
 
     // Create content container
     this._content = document.createElement('div');
@@ -83,10 +113,19 @@ export class FITSPanel extends Widget {
 
     const { path, n_extensions, hdus } = this._metadata;
 
+    // Create main layout with viewer panel and metadata panel
     let html = `
-      <h2>FITS File: ${path}</h2>
-      <p><strong>Number of HDUs:</strong> ${n_extensions}</p>
-      <hr/>
+      <div class="jp-FITSViewer-layout">
+        <div class="jp-FITSViewer-viewerPanel">
+          <div id="${this._viewerId}-controls" class="jp-FITSViewer-sliceControls"></div>
+          <div id="${this._viewerId}" class="jp-FITSViewer-viewerContainer">
+            <div class="jp-FITSViewer-viewerPlaceholder">Select an HDU to view</div>
+          </div>
+        </div>
+        <div class="jp-FITSViewer-metadataPanel">
+          <h2>FITS File: ${path}</h2>
+          <p><strong>Number of HDUs:</strong> ${n_extensions}</p>
+          <hr/>
     `;
 
     for (const hdu of hdus) {
@@ -99,8 +138,18 @@ export class FITSPanel extends Widget {
       if (hdu.shape) {
         html += `
           <p><strong>Shape:</strong> ${hdu.shape.join(' × ')}</p>
-          <p><strong>Data type:</strong> ${hdu.dtype}</p>
+          <p><strong>Array type:</strong> ${hdu.arrayType}</p>
         `;
+
+        // Add View Image button for 2D data
+        if (hdu.shape.length >= 2) {
+          html += `
+            <button class="jp-FITSViewer-viewButton jp-mod-styled"
+                    data-hdu="${hdu.index}">
+              View Image
+            </button>
+          `;
+        }
 
         // Add a test slice button for any data with shape
         if (hdu.shape.length >= 1) {
@@ -109,8 +158,8 @@ export class FITSPanel extends Widget {
           const slicesStr = sliceRanges.join(',');
           const displayShape = hdu.shape.map(size => Math.min(10, size)).join(' × ');
           html += `
-            <button class="jp-FITSViewer-sliceButton" 
-                    data-hdu="${hdu.index}" 
+            <button class="jp-FITSViewer-sliceButton"
+                    data-hdu="${hdu.index}"
                     data-slices="${slicesStr}">
               Test slice [${slicesStr}] (${displayShape})
             </button>
@@ -121,24 +170,42 @@ export class FITSPanel extends Widget {
         html += `<p><em>No data in this HDU</em></p>`;
       }
 
-      // Show selected header keywords
-      const importantKeys = ['BITPIX', 'NAXIS', 'NAXIS1', 'NAXIS2', 'BSCALE', 'BZERO', 'OBJECT', 'DATE-OBS'];
-      const headerEntries = Object.entries(hdu.header)
-        .filter(([k]) => importantKeys.includes(k) || k.startsWith('COMMENT') === false && k.startsWith('HISTORY') === false)
-        .slice(0, 20);
-
-      if (headerEntries.length > 0) {
-        html += `<details><summary>Header (first 20 keywords)</summary><table class="jp-FITSViewer-headerTable">`;
-        for (const [key, value] of headerEntries) {
-          html += `<tr><td><code>${key}</code></td><td>${value}</td></tr>`;
-        }
-        html += `</table></details>`;
+      // Show header as raw 80-column FITS format (monospace)
+      if (hdu.header) {
+        // Escape HTML entities in the header string
+        const escapedHeader = String(hdu.header)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        html += `<details><summary>Header</summary><pre class="jp-FITSViewer-headerPre">${escapedHeader}</pre></details>`;
       }
 
       html += `</div>`;
     }
 
+    html += `
+        </div>
+      </div>
+    `;
+
     this._content.innerHTML = html;
+
+    // Store references to containers
+    this._viewerContainer = document.getElementById(this._viewerId) as HTMLDivElement;
+    this._sliceControlsContainer = document.getElementById(`${this._viewerId}-controls`) as HTMLDivElement;
+
+    // Initialize the viewer
+    void this._initializeViewer();
+
+    // Attach event listeners to view buttons
+    const viewButtons = this._content.querySelectorAll('.jp-FITSViewer-viewButton');
+    viewButtons.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const hdu = parseInt(target.dataset.hdu || '0', 10);
+        void this._viewHDUImage(hdu);
+      });
+    });
 
     // Attach event listeners to slice buttons
     const buttons = this._content.querySelectorAll('.jp-FITSViewer-sliceButton');
@@ -153,8 +220,171 @@ export class FITSPanel extends Widget {
   }
 
   /**
+   * Initialize the viewarr WASM viewer
+   */
+  private async _initializeViewer(): Promise<void> {
+    await viewarrPromise;
+
+    if (!viewarr || !this._viewerContainer) {
+      return;
+    }
+
+    try {
+      await viewarr.createViewer(this._viewerId);
+    } catch (error) {
+      console.error('Failed to initialize viewarr:', error);
+    }
+  }
+
+  /**
+   * View full HDU image in the viewer
+   */
+  private async _viewHDUImage(hduIndex: number): Promise<void> {
+    if (!viewarr || !viewarr.hasViewer(this._viewerId)) {
+      console.warn('Viewer not available');
+      return;
+    }
+
+    const hdu = this._metadata?.hdus.find(h => h.index === hduIndex);
+    if (!hdu || !hdu.shape || hdu.shape.length < 2) {
+      return;
+    }
+
+    const shape = hdu.shape;
+    const numLeadingAxes = shape.length - 2;
+
+    // Initialize or update slice state
+    if (!this._sliceState || this._sliceState.hduIndex !== hduIndex) {
+      this._sliceState = {
+        hduIndex,
+        shape,
+        sliceIndices: new Array(numLeadingAxes).fill(0)
+      };
+    }
+
+    // Render slice controls if we have leading axes
+    this._renderSliceControls();
+
+    // Fetch and display the current slice
+    await this._fetchAndDisplaySlice();
+  }
+
+  /**
+   * Render slice navigation controls for leading axes
+   */
+  private _renderSliceControls(): void {
+    if (!this._sliceControlsContainer || !this._sliceState) {
+      return;
+    }
+
+    const { shape, sliceIndices } = this._sliceState;
+    const numLeadingAxes = shape.length - 2;
+
+    if (numLeadingAxes === 0) {
+      // No leading axes, hide controls
+      this._sliceControlsContainer.innerHTML = '';
+      return;
+    }
+
+    let html = '';
+    for (let axis = 0; axis < numLeadingAxes; axis++) {
+      const axisSize = shape[axis];
+      const currentIndex = sliceIndices[axis];
+      const axisLabel = numLeadingAxes === 1 ? 'Plane' : `Axis ${axis}`;
+
+      html += `
+        <div class="jp-FITSViewer-sliceControl" data-axis="${axis}">
+          <button class="jp-FITSViewer-sliceButton jp-FITSViewer-prevButton"
+                  data-axis="${axis}"
+                  data-direction="prev"
+                  ${currentIndex === 0 ? 'disabled' : ''}>
+            ◀
+          </button>
+          <span class="jp-FITSViewer-sliceLabel">
+            ${axisLabel}: <strong>${currentIndex + 1}</strong> / ${axisSize}
+          </span>
+          <button class="jp-FITSViewer-sliceButton jp-FITSViewer-nextButton"
+                  data-axis="${axis}"
+                  data-direction="next"
+                  ${currentIndex >= axisSize - 1 ? 'disabled' : ''}>
+            ▶
+          </button>
+        </div>
+      `;
+    }
+
+    this._sliceControlsContainer.innerHTML = html;
+
+    // Attach event listeners
+    const buttons = this._sliceControlsContainer.querySelectorAll('.jp-FITSViewer-sliceButton');
+    buttons.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const target = e.currentTarget as HTMLElement;
+        const axis = parseInt(target.dataset.axis || '0', 10);
+        const direction = target.dataset.direction;
+        this._navigateSlice(axis, direction === 'next' ? 1 : -1);
+      });
+    });
+  }
+
+  /**
+   * Navigate to a different slice along a given axis
+   */
+  private _navigateSlice(axis: number, delta: number): void {
+    if (!this._sliceState) {
+      return;
+    }
+
+    const { shape, sliceIndices } = this._sliceState;
+    const axisSize = shape[axis];
+    const newIndex = Math.max(0, Math.min(axisSize - 1, sliceIndices[axis] + delta));
+
+    if (newIndex !== sliceIndices[axis]) {
+      this._sliceState.sliceIndices[axis] = newIndex;
+      this._renderSliceControls();
+      void this._fetchAndDisplaySlice();
+    }
+  }
+
+  /**
+   * Fetch and display the current slice based on slice state
+   */
+  private async _fetchAndDisplaySlice(): Promise<void> {
+    if (!this._sliceState || !viewarr || !viewarr.hasViewer(this._viewerId)) {
+      return;
+    }
+
+    const { hduIndex, shape, sliceIndices } = this._sliceState;
+
+    // Build slice string: for leading axes use current index, for image axes use full extent
+    const slices = shape.map((size, i) => {
+      if (i < shape.length - 2) {
+        const idx = sliceIndices[i];
+        return `${idx}:${idx + 1}`;
+      }
+      return `0:${size}`;
+    }).join(',');
+
+    try {
+      const path = this._context.path;
+      const { buffer, shape: resultShape, arrayType } = await requestBinaryAPI(
+        `slice?path=${encodeURIComponent(path)}&hdu=${hduIndex}&slices=${encodeURIComponent(slices)}`
+      );
+
+      // Get image dimensions (last two elements of shape)
+      const height = resultShape[resultShape.length - 2] || 1;
+      const width = resultShape[resultShape.length - 1] || 1;
+
+      // Use arrayType from response for proper data interpretation
+      viewarr.setImageData(this._viewerId, buffer, width, height, arrayType);
+    } catch (error) {
+      console.error('Failed to load slice:', error);
+    }
+  }
+
+  /**
    * Fetch a data slice from the server
-   * 
+   *
    * @param hdu - HDU index
    * @param slices - Comma-separated slice ranges in NumPy format (e.g., "0:10,5:15")
    */
@@ -169,16 +399,16 @@ export class FITSPanel extends Widget {
 
     try {
       const path = this._context.path;
-      const { buffer, shape, dtype } = await requestBinaryAPI(
+      const { buffer, shape, arrayType } = await requestBinaryAPI(
         `slice?path=${encodeURIComponent(path)}&hdu=${hdu}&slices=${encodeURIComponent(slices)}`
       );
 
-      // Convert to appropriate TypedArray based on dtype
-      const data = createTypedArray(buffer, dtype);
+      // Convert to appropriate TypedArray based on arrayType
+      const data = createTypedArray(buffer, arrayType);
 
       if (resultEl) {
         let output = `Shape: ${shape.join(' × ')}\n`;
-        output += `Dtype: ${dtype}\n`;
+        output += `Type: ${arrayType}\n`;
         output += `Total elements: ${data.length}\n`;
         output += `Sample values (first 25):\n`;
 
@@ -218,6 +448,10 @@ export class FITSPanel extends Widget {
    * Handle dispose
    */
   protected onCloseRequest(msg: Message): void {
+    // Clean up viewarr instance
+    if (viewarr && viewarr.hasViewer(this._viewerId)) {
+      viewarr.destroyViewer(this._viewerId);
+    }
     super.onCloseRequest(msg);
     this.dispose();
   }

@@ -6317,6 +6317,7 @@ __metadata:
     stylelint-csstree-validator: ^3.0.0
     stylelint-prettier: ^4.0.0
     typescript: ~5.5.4
+    viewarr: "file:../viewarr/pkg"
     yjs: ^13.5.0
   languageName: unknown
   linkType: soft
@@ -10553,6 +10554,13 @@ __metadata:
   version: 1.0.3
   resolution: "validate.io-number@npm:1.0.3"
   checksum: 42418aeb6c969efa745475154fe576809b02eccd0961aad0421b090d6e7a12d23a3e28b0d5dddd2c6347c1a6bdccb82bba5048c716131cd20207244d50e07282
+  languageName: node
+  linkType: hard
+
+"viewarr@file:../viewarr/pkg::locator=fitsview%40workspace%3A.":
+  version: 0.1.0
+  resolution: "viewarr@file:../viewarr/pkg#../viewarr/pkg::hash=c1b382&locator=fitsview%40workspace%3A."
+  checksum: f5da077d604c115dba21b7309e4861f5f540091f235b391415a0e9a3d5a2b3e84435b6fde99a6286cba3298dc2cc75f9c2ff0dc78c6048017d9ad77055e94f05
   languageName: node
   linkType: hard
 

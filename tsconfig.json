@@ -6,7 +6,7 @@
     "esModuleInterop": true,
     "incremental": true,
     "jsx": "react",
-    "lib": ["DOM", "ES2020"],
+    "lib": ["DOM", "ES2020", "ESNext.Disposable"],
     "module": "esnext",
     "moduleResolution": "node",
     "noEmitOnError": true,
