@@ -5,7 +5,18 @@ import {
 } from '@jupyterlab/docregistry';
 import { Widget } from '@lumino/widgets';
 import { Message } from '@lumino/messaging';
-import { requestAPI, requestBinaryAPI, createTypedArray, ArrayType } from './handler';
+import {
+  requestAPI,
+  requestBinaryAPI,
+  requestBinaryAPIWithProgress,
+  createTypedArray,
+  ArrayType,
+  calculateSliceByteSize,
+  formatByteSize
+} from './handler';
+
+// Maximum auto-fetch size in bytes (5 MB)
+const MAX_AUTO_FETCH_SIZE = 5 * 1024 * 1024;
 
 // Dynamically import viewarr for WASM viewer
 // Using dynamic import allows graceful degradation if viewarr isn't built
@@ -65,6 +76,7 @@ export class FITSPanel extends Widget {
   private _viewerContainer: HTMLDivElement | null = null;
   private _sliceState: ISliceState | null = null;
   private _sliceControlsContainer: HTMLDivElement | null = null;
+  private _fetchAbortController: AbortController | null = null;
 
   constructor(context: DocumentRegistry.IContext<DocumentModel>) {
     super();
@@ -141,16 +153,6 @@ export class FITSPanel extends Widget {
           <p><strong>Array type:</strong> ${hdu.arrayType}</p>
         `;
 
-        // Add View Image button for 2D data
-        if (hdu.shape.length >= 2) {
-          html += `
-            <button class="jp-FITSViewer-viewButton jp-mod-styled"
-                    data-hdu="${hdu.index}">
-              View Image
-            </button>
-          `;
-        }
-
         // Add a test slice button for any data with shape
         if (hdu.shape.length >= 1) {
           // Build slice ranges for each axis, taking min(10, axis_size) for each
@@ -194,17 +196,9 @@ export class FITSPanel extends Widget {
     this._viewerContainer = document.getElementById(this._viewerId) as HTMLDivElement;
     this._sliceControlsContainer = document.getElementById(`${this._viewerId}-controls`) as HTMLDivElement;
 
-    // Initialize the viewer
-    void this._initializeViewer();
-
-    // Attach event listeners to view buttons
-    const viewButtons = this._content.querySelectorAll('.jp-FITSViewer-viewButton');
-    viewButtons.forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const target = e.target as HTMLElement;
-        const hdu = parseInt(target.dataset.hdu || '0', 10);
-        void this._viewHDUImage(hdu);
-      });
+    // Initialize the viewer and then auto-display first viewable HDU
+    void this._initializeViewer().then(() => {
+      this._autoDisplayFirstHDU();
     });
 
     // Attach event listeners to slice buttons
@@ -237,6 +231,24 @@ export class FITSPanel extends Widget {
   }
 
   /**
+   * Automatically display the first HDU with viewable 2D+ data
+   */
+  private _autoDisplayFirstHDU(): void {
+    if (!this._metadata || !viewarr || !viewarr.hasViewer(this._viewerId)) {
+      return;
+    }
+
+    // Find first HDU with 2D+ data
+    const viewableHDU = this._metadata.hdus.find(
+      hdu => hdu.shape && hdu.shape.length >= 2 && hdu.arrayType
+    );
+
+    if (viewableHDU) {
+      void this._viewHDUImage(viewableHDU.index);
+    }
+  }
+
+  /**
    * View full HDU image in the viewer
    */
   private async _viewHDUImage(hduIndex: number): Promise<void> {
@@ -246,7 +258,7 @@ export class FITSPanel extends Widget {
     }
 
     const hdu = this._metadata?.hdus.find(h => h.index === hduIndex);
-    if (!hdu || !hdu.shape || hdu.shape.length < 2) {
+    if (!hdu || !hdu.shape || hdu.shape.length < 2 || !hdu.arrayType) {
       return;
     }
 
@@ -265,8 +277,131 @@ export class FITSPanel extends Widget {
     // Render slice controls if we have leading axes
     this._renderSliceControls();
 
-    // Fetch and display the current slice
-    await this._fetchAndDisplaySlice();
+    // Calculate the byte size for the 2D slice
+    const sliceByteSize = calculateSliceByteSize(shape, hdu.arrayType);
+
+    if (sliceByteSize <= MAX_AUTO_FETCH_SIZE) {
+      // Small enough to auto-fetch
+      await this._fetchAndDisplaySlice();
+    } else {
+      // Too large - show fetch prompt
+      this._showLargeImagePrompt(sliceByteSize);
+    }
+  }
+
+  /**
+   * Show a prompt for large images with fetch button and progress UI
+   */
+  private _showLargeImagePrompt(byteSize: number): void {
+    if (!this._viewerContainer) {
+      return;
+    }
+
+    const sizeStr = formatByteSize(byteSize);
+    this._viewerContainer.innerHTML = `
+      <div class="jp-FITSViewer-largeImagePrompt">
+        <p>This image slice is <strong>${sizeStr}</strong>, which exceeds the auto-fetch limit.</p>
+        <button class="jp-FITSViewer-fetchButton jp-mod-styled">
+          Fetch and Display
+        </button>
+        <div class="jp-FITSViewer-progressContainer" style="display: none;">
+          <div class="jp-FITSViewer-progressBar">
+            <div class="jp-FITSViewer-progressFill"></div>
+          </div>
+          <span class="jp-FITSViewer-progressText">0%</span>
+          <button class="jp-FITSViewer-cancelButton jp-mod-styled jp-mod-warn">
+            Cancel
+          </button>
+        </div>
+      </div>
+    `;
+
+    const fetchButton = this._viewerContainer.querySelector('.jp-FITSViewer-fetchButton') as HTMLButtonElement;
+    const progressContainer = this._viewerContainer.querySelector('.jp-FITSViewer-progressContainer') as HTMLDivElement;
+    const progressFill = this._viewerContainer.querySelector('.jp-FITSViewer-progressFill') as HTMLDivElement;
+    const progressText = this._viewerContainer.querySelector('.jp-FITSViewer-progressText') as HTMLSpanElement;
+    const cancelButton = this._viewerContainer.querySelector('.jp-FITSViewer-cancelButton') as HTMLButtonElement;
+
+    fetchButton.addEventListener('click', () => {
+      fetchButton.style.display = 'none';
+      progressContainer.style.display = 'flex';
+      void this._fetchAndDisplaySliceWithProgress(progressFill, progressText, progressContainer);
+    });
+
+    cancelButton.addEventListener('click', () => {
+      if (this._fetchAbortController) {
+        this._fetchAbortController.abort();
+        this._fetchAbortController = null;
+      }
+      // Reset UI
+      fetchButton.style.display = 'block';
+      progressContainer.style.display = 'none';
+      progressFill.style.width = '0%';
+      progressText.textContent = '0%';
+    });
+  }
+
+  /**
+   * Fetch and display slice with progress tracking
+   */
+  private async _fetchAndDisplaySliceWithProgress(
+    progressFill: HTMLDivElement,
+    progressText: HTMLSpanElement,
+    progressContainer: HTMLDivElement
+  ): Promise<void> {
+    if (!this._sliceState || !viewarr || !viewarr.hasViewer(this._viewerId)) {
+      return;
+    }
+
+    const { hduIndex, shape, sliceIndices } = this._sliceState;
+
+    // Build slice string
+    const slices = shape.map((size, i) => {
+      if (i < shape.length - 2) {
+        const idx = sliceIndices[i];
+        return `${idx}:${idx + 1}`;
+      }
+      return `0:${size}`;
+    }).join(',');
+
+    // Create abort controller
+    this._fetchAbortController = new AbortController();
+
+    try {
+      const path = this._context.path;
+      const { buffer, shape: resultShape, arrayType } = await requestBinaryAPIWithProgress(
+        `slice?path=${encodeURIComponent(path)}&hdu=${hduIndex}&slices=${encodeURIComponent(slices)}`,
+        (loaded, total) => {
+          const percent = Math.round((loaded / total) * 100);
+          progressFill.style.width = `${percent}%`;
+          progressText.textContent = `${percent}% (${formatByteSize(loaded)} / ${formatByteSize(total)})`;
+        },
+        this._fetchAbortController.signal
+      );
+
+      this._fetchAbortController = null;
+
+      // Get image dimensions
+      const height = resultShape[resultShape.length - 2] || 1;
+      const width = resultShape[resultShape.length - 1] || 1;
+
+      // Clear the prompt and show image
+      if (this._viewerContainer) {
+        this._viewerContainer.innerHTML = '';
+        // Recreate the canvas - viewer needs to be reinitialized
+        await viewarr.createViewer(this._viewerId);
+      }
+
+      viewarr.setImageData(this._viewerId, buffer, width, height, arrayType);
+    } catch (error) {
+      this._fetchAbortController = null;
+      if ((error as Error).name === 'AbortError') {
+        console.log('Fetch cancelled by user');
+        return;
+      }
+      console.error('Failed to load slice:', error);
+      progressContainer.innerHTML = `<span class="jp-FITSViewer-error">Error: ${error}</span>`;
+    }
   }
 
   /**

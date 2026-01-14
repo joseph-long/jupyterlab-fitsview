@@ -64,20 +64,6 @@ def cube_fits_file(jp_root_dir):
     return "cube_test.fits"
 
 
-def dtype_matches(actual_dtype: str, expected_base: str) -> bool:
-    """Check if a dtype string matches the expected base type.
-    
-    Handles both numpy dtype strings (like '>f4', '<f4') and 
-    Python type names (like 'float32').
-    """
-    # Create a numpy dtype from the actual string and check the name
-    try:
-        np_dtype = np.dtype(actual_dtype)
-        return np_dtype.name == expected_base or actual_dtype == expected_base
-    except (TypeError, ValueError):
-        return actual_dtype == expected_base
-
-
 class TestMetadataHandler:
     """Tests for the FITSMetadataHandler."""
 
@@ -100,10 +86,13 @@ class TestMetadataHandler:
         assert primary["name"] == "PRIMARY"
         assert primary["type"] == "PrimaryHDU"
         assert primary["shape"] == [10, 10]
-        # FITS stores data big-endian, so dtype might be '>f4' or 'float32'
-        assert dtype_matches(primary["dtype"], "float32")
-        assert primary["header"]["OBJECT"] == "Test Object"
-        assert primary["header"]["TELESCOP"] == "Test Telescope"
+        # arrayType is now a Rust-style type specifier
+        assert primary["arrayType"] == "f32"
+        # header is returned as raw 80-column FITS format string
+        assert "OBJECT" in primary["header"]
+        assert "Test Object" in primary["header"]
+        assert "TELESCOP" in primary["header"]
+        assert "Test Telescope" in primary["header"]
 
         # Check image extension
         sci = hdus[1]
@@ -111,7 +100,7 @@ class TestMetadataHandler:
         assert sci["name"] == "SCI"
         assert sci["type"] == "ImageHDU"
         assert sci["shape"] == [5, 10]
-        assert dtype_matches(sci["dtype"], "int16")
+        assert sci["arrayType"] == "i16"
 
         # Check table extension
         table = hdus[2]
@@ -153,14 +142,12 @@ class TestSliceHandler:
         shape = json.loads(response.headers["X-FITS-Shape"])
         assert shape == [2, 3]
 
-        # Check dtype header - should be little-endian float32
-        dtype = response.headers["X-FITS-Dtype"]
-        np_dtype = np.dtype(dtype)
-        assert np_dtype.name == "float32"
-        assert np_dtype.byteorder in ("<", "=")  # little-endian or native
+        # Check type header - should be f32 (Rust-style type specifier)
+        array_type = response.headers["X-FITS-Type"]
+        assert array_type == "f32"
 
-        # Verify data content
-        data = np.frombuffer(response.body, dtype=dtype).reshape(2, 3)
+        # Verify data content (data is sent as little-endian)
+        data = np.frombuffer(response.body, dtype="<f4").reshape(2, 3)
         expected = np.arange(100, dtype=np.float32).reshape(10, 10)[0:2, 0:3]
         np.testing.assert_array_almost_equal(data, expected)
 
@@ -175,17 +162,15 @@ class TestSliceHandler:
 
         assert response.code == 200
 
-        # Check dtype header preserves int16
-        dtype = response.headers["X-FITS-Dtype"]
-        np_dtype = np.dtype(dtype)
-        assert np_dtype.name == "int16"
-        assert np_dtype.byteorder in ("<", "=")  # little-endian or native
+        # Check type header - should be i16 (Rust-style type specifier)
+        array_type = response.headers["X-FITS-Type"]
+        assert array_type == "i16"
 
-        # Verify data content
+        # Verify data content (data is sent as little-endian)
         shape = json.loads(response.headers["X-FITS-Shape"])
         assert shape == [2, 4]
 
-        data = np.frombuffer(response.body, dtype=dtype).reshape(2, 4)
+        data = np.frombuffer(response.body, dtype="<i2").reshape(2, 4)
         expected = np.arange(50, dtype=np.int16).reshape(5, 10)[1:3, 2:6]
         np.testing.assert_array_equal(data, expected)
 
@@ -200,13 +185,11 @@ class TestSliceHandler:
 
         assert response.code == 200
         
-        # Check dtype header - should be little-endian float64
-        dtype = response.headers["X-FITS-Dtype"]
-        np_dtype = np.dtype(dtype)
-        assert np_dtype.name == "float64"
-        assert np_dtype.byteorder in ("<", "=")  # little-endian or native
+        # Check type header - should be f64 (Rust-style type specifier)
+        array_type = response.headers["X-FITS-Type"]
+        assert array_type == "f64"
 
-        data = np.frombuffer(response.body, dtype=dtype).reshape(2, 2)
+        data = np.frombuffer(response.body, dtype="<f8").reshape(2, 2)
         expected = np.array([[1.5, 2.5], [3.5, 4.5]], dtype=np.float64)
         np.testing.assert_array_almost_equal(data, expected)
 
@@ -225,9 +208,10 @@ class TestSliceHandler:
         shape = json.loads(response.headers["X-FITS-Shape"])
         assert shape == [2, 2, 3]
 
-        # Verify data content
-        dtype = response.headers["X-FITS-Dtype"]
-        data = np.frombuffer(response.body, dtype=dtype).reshape(2, 2, 3)
+        # Verify data content (using type header for reference, but hardcode dtype for parsing)
+        array_type = response.headers["X-FITS-Type"]
+        assert array_type == "f32"
+        data = np.frombuffer(response.body, dtype="<f4").reshape(2, 2, 3)
         expected = np.arange(120, dtype=np.float32).reshape(4, 5, 6)[1:3, 0:2, 2:5]
         np.testing.assert_array_almost_equal(data, expected)
 

@@ -13,23 +13,23 @@ import numpy as np
 
 class ArrayType(str, Enum):
     """
-    Enum mapping numpy dtypes to JavaScript TypedArray types.
+    Enum mapping numpy dtypes to Rust-style type specifiers.
 
     Uses dtype.kind and dtype.itemsize to unambiguously determine the type,
     avoiding string comparison issues with numpy's various dtype representations.
 
-    Values correspond to JavaScript TypedArray constructor names.
+    Values use Rust-style type names for consistency across the wire protocol.
     """
-    INT8 = "Int8Array"
-    UINT8 = "Uint8Array"
-    INT16 = "Int16Array"
-    UINT16 = "Uint16Array"
-    INT32 = "Int32Array"
-    UINT32 = "Uint32Array"
-    BIGINT64 = "BigInt64Array"
-    BIGUINT64 = "BigUint64Array"
-    FLOAT32 = "Float32Array"
-    FLOAT64 = "Float64Array"
+    INT8 = "i8"
+    UINT8 = "u8"
+    INT16 = "i16"
+    UINT16 = "u16"
+    INT32 = "i32"
+    UINT32 = "u32"
+    INT64 = "i64"
+    UINT64 = "u64"
+    FLOAT32 = "f32"
+    FLOAT64 = "f64"
 
 
 def numpy_dtype_to_array_type(dtype: np.dtype) -> ArrayType:
@@ -57,7 +57,7 @@ def numpy_dtype_to_array_type(dtype: np.dtype) -> ArrayType:
         elif size == 4:
             return ArrayType.INT32
         elif size == 8:
-            return ArrayType.BIGINT64
+            return ArrayType.INT64
     elif kind == 'u':  # Unsigned integer
         if size == 1:
             return ArrayType.UINT8
@@ -66,7 +66,7 @@ def numpy_dtype_to_array_type(dtype: np.dtype) -> ArrayType:
         elif size == 4:
             return ArrayType.UINT32
         elif size == 8:
-            return ArrayType.BIGUINT64
+            return ArrayType.UINT64
     elif kind == 'f':  # Floating-point
         if size == 4:
             return ArrayType.FLOAT32

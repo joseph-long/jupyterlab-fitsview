@@ -206,3 +206,62 @@
   overflow: auto;
   max-height: 400px;
 }
+
+/* Large image prompt UI */
+.jp-FITSViewer-largeImagePrompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 20px;
+  text-align: center;
+  gap: 16px;
+}
+
+.jp-FITSViewer-largeImagePrompt p {
+  margin: 0;
+  color: var(--jp-ui-font-color1);
+  font-size: 1em;
+}
+
+.jp-FITSViewer-fetchButton {
+  padding: 8px 24px;
+  font-size: 1em;
+}
+
+.jp-FITSViewer-progressContainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.jp-FITSViewer-progressBar {
+  flex: 1;
+  height: 20px;
+  background: var(--jp-layout-color2);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--jp-border-color1);
+}
+
+.jp-FITSViewer-progressFill {
+  height: 100%;
+  width: 0%;
+  background: var(--jp-brand-color1);
+  transition: width 0.1s ease-out;
+}
+
+.jp-FITSViewer-progressText {
+  min-width: 180px;
+  font-family: var(--jp-code-font-family);
+  font-size: 0.85em;
+  color: var(--jp-ui-font-color1);
+}
+
+.jp-FITSViewer-cancelButton {
+  padding: 4px 12px;
+  font-size: 0.9em;
+}
