@@ -154,7 +154,10 @@ export function getArrayTypeByteSize(arrayType: ArrayType): number {
 /**
  * Calculate the byte size of a 2D image slice from shape and arrayType
  */
-export function calculateSliceByteSize(shape: number[], arrayType: ArrayType): number {
+export function calculateSliceByteSize(
+  shape: number[],
+  arrayType: ArrayType
+): number {
   if (shape.length < 2) {
     return 0;
   }
@@ -200,11 +203,7 @@ export async function requestBinaryAPIWithProgress(
   signal?: AbortSignal
 ): Promise<{ buffer: ArrayBuffer; shape: number[]; arrayType: ArrayType }> {
   const settings = ServerConnection.makeSettings();
-  const requestUrl = URLExt.join(
-    settings.baseUrl,
-    'fitsview',
-    endPoint
-  );
+  const requestUrl = URLExt.join(settings.baseUrl, 'fitsview', endPoint);
 
   // Build headers from settings
   const headers: HeadersInit = {};
@@ -249,14 +248,12 @@ export async function requestBinaryAPIWithProgress(
   const chunks: Uint8Array[] = [];
   let loaded = 0;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
-    chunks.push(value);
-    loaded += value.length;
+  let readResult = await reader.read();
+  while (!readResult.done) {
+    chunks.push(readResult.value);
+    loaded += readResult.value.length;
     onProgress(loaded, total);
+    readResult = await reader.read();
   }
 
   // Combine chunks into a single ArrayBuffer

@@ -64,9 +64,11 @@ The extension provides two REST API endpoints (namespaced under `/fitsview/`):
 Returns metadata for a FITS file.
 
 **Parameters:**
+
 - `path` (required): Path to the FITS file relative to the Jupyter server root
 
 **Response:** JSON object with:
+
 - `path`: File path
 - `hdus`: Array of HDU info (index, name, type, header, shape, dtype)
 
@@ -75,6 +77,7 @@ Returns metadata for a FITS file.
 Returns a data slice as raw bytes in little-endian byte order, preserving the original data type. Supports N-dimensional data (2D images, 3D cubes, 4D hypercubes, etc.).
 
 **Parameters:**
+
 - `path` (required): Path to the FITS file
 - `hdu` (optional, default=0): HDU index
 - `slices` (required): Comma-separated slice ranges for each axis in NumPy order.
@@ -86,8 +89,9 @@ Returns a data slice as raw bytes in little-endian byte order, preserving the or
     - 3D cube: `slices=0:10,0:100,50:150` → planes 0-9, rows 0-99, columns 50-149
 
 **Response:** Binary data (`application/octet-stream`) with headers:
+
 - `X-FITS-Shape`: JSON array of dimensions
-- `X-FITS-Dtype`: NumPy dtype string (e.g., `<f4`, `<i2`, `<f8`)
+- `X-FITS-Type`: Rust-style type name (e.g. `f64` or `u16`)
 
 **Errors:** Returns 400 for out-of-bounds requests or dimension mismatches
 
@@ -107,6 +111,7 @@ Returns a data slice as raw bytes in little-endian byte order, preserving the or
 This extension uses [viewarr](https://github.com/joseph-long/viewarr), a WebAssembly image viewer built with Rust and egui. It is included as a git submodule and must be built before the extension.
 
 **One-time setup:**
+
 ```bash
 # Install wasm-pack if not already installed
 cargo install wasm-pack
@@ -118,6 +123,7 @@ cd ..
 ```
 
 **Rebuilding after viewarr changes:**
+
 ```bash
 # From the fitsview directory, use the convenience script:
 jlpm rebuild:viewarr
@@ -166,18 +172,21 @@ jupyter server extension list
 For the best development experience, run these commands in separate terminals:
 
 **Terminal 1 - Watch TypeScript changes:**
+
 ```bash
 source .venv/bin/activate
 jlpm watch
 ```
 
 **Terminal 2 - Run JupyterLab:**
+
 ```bash
 source .venv/bin/activate
 jupyter lab --no-browser
 ```
 
 With this setup:
+
 - TypeScript changes are automatically rebuilt when you save files
 - Refresh your browser to see frontend changes
 - Python (server extension) changes require restarting `jupyter lab`
@@ -189,6 +198,7 @@ With this setup:
 3. Refresh your browser (Cmd+Shift+R / Ctrl+Shift+R to hard refresh)
 
 For Python changes in `fitsview/`:
+
 1. Make changes to Python files
 2. Restart the `jupyter lab` process
 3. Refresh your browser
@@ -196,11 +206,13 @@ For Python changes in `fitsview/`:
 #### Debugging
 
 **Frontend debugging:**
+
 - Open browser DevTools (F12)
 - Check Console for errors and extension logs
 - Use Network tab to inspect API calls to `/fitsview/`
 
 **Backend debugging:**
+
 - Server logs appear in the terminal running `jupyter lab`
 - Add `server_app.log.info("message")` for custom logging
 - Use `--debug` flag: `jupyter lab --debug`
@@ -244,6 +256,7 @@ python -m pytest fitsview/tests -v --cov=fitsview --cov-report=html
 ```
 
 The Python tests cover:
+
 - Metadata retrieval from FITS files
 - Data slice extraction with dtype preservation
 - Error handling for invalid paths, HDU indices, and out-of-bounds requests
@@ -280,6 +293,7 @@ viewarr/ (external)         # WebAssembly image viewer
 The extension uses a **Content Provider** pattern to prevent JupyterLab from downloading full file contents. Instead, the frontend widget makes targeted API calls to fetch only the metadata and data slices needed.
 
 The **viewarr** component is a Rust/WebAssembly viewer that provides:
+
 - Hardware-accelerated rendering via WebGL (through egui)
 - Pan and zoom with mouse/trackpad
 - FITS coordinate conventions (Y-axis origin at bottom)

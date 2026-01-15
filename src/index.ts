@@ -46,10 +46,7 @@ class FITSContentProvider extends RestContentProvider {
 /**
  * A widget factory for FITS files.
  */
-class FITSViewerFactory extends ABCWidgetFactory<
-  FITSDocument,
-  DocumentModel
-> {
+class FITSViewerFactory extends ABCWidgetFactory<FITSDocument, DocumentModel> {
   protected createNewWidget(
     context: DocumentRegistry.IContext<DocumentModel>
   ): FITSDocument {
@@ -61,9 +58,7 @@ class FITSViewerFactory extends ABCWidgetFactory<
 /**
  * Model factory for FITS documents
  */
-class FITSModelFactory
-  implements DocumentRegistry.IModelFactory<DocumentModel>
-{
+class FITSModelFactory implements DocumentRegistry.IModelFactory<DocumentModel> {
   /**
    * The name of the model.
    */

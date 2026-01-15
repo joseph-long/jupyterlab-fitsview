@@ -43,7 +43,7 @@ export interface IHDUInfo {
   index: number;
   name: string;
   type: string;
-  header: string;  // Raw 80-column FITS header string
+  header: string; // Raw 80-column FITS header string
   shape: number[] | null;
   arrayType: ArrayType | null;
 }
@@ -164,7 +164,7 @@ export class FITSPanel extends Widget {
     for (const hdu of hdus) {
       const isViewable = hdu.shape && hdu.shape.length >= 2 && hdu.arrayType;
       const hduName = hdu.name || `HDU ${hdu.index}`;
-      
+
       // Build info line: shape × type, row count, or dash
       let infoStr: string;
       if (hdu.shape && hdu.shape.length >= 2 && hdu.arrayType) {
@@ -178,8 +178,8 @@ export class FITSPanel extends Widget {
         infoStr = '—';
       }
 
-      const buttonClass = isViewable 
-        ? 'jp-FITSViewer-hduButton' 
+      const buttonClass = isViewable
+        ? 'jp-FITSViewer-hduButton'
         : 'jp-FITSViewer-hduButton jp-FITSViewer-hduButton-disabled';
       const disabledAttr = isViewable ? '' : 'disabled';
 
@@ -195,7 +195,7 @@ export class FITSPanel extends Widget {
     }
 
     // Create main layout with HDU bar, slice controls, and viewer (no sidebar)
-    let html = `
+    const html = `
       <div class="jp-FITSViewer-layout">
         <div class="jp-FITSViewer-viewerPanel">
           <div class="jp-FITSViewer-controlBar">
@@ -221,7 +221,9 @@ export class FITSPanel extends Widget {
       }
     }
 
-    this._sliceControlsContainer = document.getElementById(`${this._baseViewerId}-controls`) as HTMLDivElement;
+    this._sliceControlsContainer = document.getElementById(
+      `${this._baseViewerId}-controls`
+    ) as HTMLDivElement;
 
     // Wait for viewarr to be ready, then auto-display first viewable HDU
     // Note: We don't create the viewer here - it's created on-demand when needed
@@ -230,11 +232,17 @@ export class FITSPanel extends Widget {
     });
 
     // Attach event listeners to HDU buttons for selection
-    const hduButtons = this._content.querySelectorAll('.jp-FITSViewer-hduButton');
+    const hduButtons = this._content.querySelectorAll(
+      '.jp-FITSViewer-hduButton'
+    );
     hduButtons.forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', e => {
         // Don't trigger if clicking on the header icon
-        if ((e.target as HTMLElement).classList.contains('jp-FITSViewer-headerIcon')) {
+        if (
+          (e.target as HTMLElement).classList.contains(
+            'jp-FITSViewer-headerIcon'
+          )
+        ) {
           return;
         }
         const hduIndex = parseInt((btn as HTMLElement).dataset.hdu || '0', 10);
@@ -243,9 +251,11 @@ export class FITSPanel extends Widget {
     });
 
     // Attach event listeners to header icons
-    const headerIcons = this._content.querySelectorAll('.jp-FITSViewer-headerIcon');
+    const headerIcons = this._content.querySelectorAll(
+      '.jp-FITSViewer-headerIcon'
+    );
     headerIcons.forEach(icon => {
-      icon.addEventListener('click', (e) => {
+      icon.addEventListener('click', e => {
         e.preventDefault();
         e.stopPropagation();
         const hduIndex = parseInt((icon as HTMLElement).dataset.hdu || '0', 10);
@@ -269,7 +279,9 @@ export class FITSPanel extends Widget {
         currentContainer.style.display = 'none';
       }
       // Remove active class from current HDU button
-      const currentHduBtn = this._content.querySelector(`.jp-FITSViewer-hduButton[data-hdu="${this._activeHduIndex}"]`);
+      const currentHduBtn = this._content.querySelector(
+        `.jp-FITSViewer-hduButton[data-hdu="${this._activeHduIndex}"]`
+      );
       currentHduBtn?.classList.remove('jp-FITSViewer-hduButton-active');
     }
 
@@ -280,7 +292,9 @@ export class FITSPanel extends Widget {
     }
 
     // Add active class to new HDU button
-    const newHduBtn = this._content.querySelector(`.jp-FITSViewer-hduButton[data-hdu="${hduIndex}"]`);
+    const newHduBtn = this._content.querySelector(
+      `.jp-FITSViewer-hduButton[data-hdu="${hduIndex}"]`
+    );
     newHduBtn?.classList.add('jp-FITSViewer-hduButton-active');
 
     this._activeHduIndex = hduIndex;
@@ -478,16 +492,30 @@ export class FITSPanel extends Widget {
       </div>
     `;
 
-    const fetchButton = viewerContainer.querySelector('.jp-FITSViewer-fetchButton') as HTMLButtonElement;
-    const progressContainer = viewerContainer.querySelector('.jp-FITSViewer-progressContainer') as HTMLDivElement;
-    const progressFill = viewerContainer.querySelector('.jp-FITSViewer-progressFill') as HTMLDivElement;
-    const progressText = viewerContainer.querySelector('.jp-FITSViewer-progressText') as HTMLSpanElement;
-    const cancelButton = viewerContainer.querySelector('.jp-FITSViewer-cancelButton') as HTMLButtonElement;
+    const fetchButton = viewerContainer.querySelector(
+      '.jp-FITSViewer-fetchButton'
+    ) as HTMLButtonElement;
+    const progressContainer = viewerContainer.querySelector(
+      '.jp-FITSViewer-progressContainer'
+    ) as HTMLDivElement;
+    const progressFill = viewerContainer.querySelector(
+      '.jp-FITSViewer-progressFill'
+    ) as HTMLDivElement;
+    const progressText = viewerContainer.querySelector(
+      '.jp-FITSViewer-progressText'
+    ) as HTMLSpanElement;
+    const cancelButton = viewerContainer.querySelector(
+      '.jp-FITSViewer-cancelButton'
+    ) as HTMLButtonElement;
 
     fetchButton.addEventListener('click', () => {
       fetchButton.style.display = 'none';
       progressContainer.style.display = 'flex';
-      void this._fetchAndDisplaySliceWithProgress(progressFill, progressText, progressContainer);
+      void this._fetchAndDisplaySliceWithProgress(
+        progressFill,
+        progressText,
+        progressContainer
+      );
     });
 
     cancelButton.addEventListener('click', () => {
@@ -528,13 +556,15 @@ export class FITSPanel extends Widget {
     const { shape, sliceIndices } = sliceState;
 
     // Build slice string
-    const slices = shape.map((size, i) => {
-      if (i < shape.length - 2) {
-        const idx = sliceIndices[i];
-        return `${idx}:${idx + 1}`;
-      }
-      return `0:${size}`;
-    }).join(',');
+    const slices = shape
+      .map((size, i) => {
+        if (i < shape.length - 2) {
+          const idx = sliceIndices[i];
+          return `${idx}:${idx + 1}`;
+        }
+        return `0:${size}`;
+      })
+      .join(',');
 
     // Create abort controller
     this._fetchAbortController = new AbortController();
@@ -543,7 +573,11 @@ export class FITSPanel extends Widget {
       const path = this._context.path;
       console.log('[FITSViewer] Fetching slice:', { path, hduIndex, slices });
 
-      const { buffer, shape: resultShape, arrayType } = await requestBinaryAPIWithProgress(
+      const {
+        buffer,
+        shape: resultShape,
+        arrayType
+      } = await requestBinaryAPIWithProgress(
         `slice?path=${encodeURIComponent(path)}&hdu=${hduIndex}&slices=${encodeURIComponent(slices)}`,
         (loaded, total) => {
           const percent = Math.round((loaded / total) * 100);
@@ -553,7 +587,11 @@ export class FITSPanel extends Widget {
         this._fetchAbortController.signal
       );
 
-      console.log('[FITSViewer] Fetch complete:', { bufferLength: buffer.byteLength, resultShape, arrayType });
+      console.log('[FITSViewer] Fetch complete:', {
+        bufferLength: buffer.byteLength,
+        resultShape,
+        arrayType
+      });
       this._fetchAbortController = null;
 
       // Get image dimensions
@@ -567,7 +605,10 @@ export class FITSPanel extends Widget {
         console.log('[FITSViewer] Clearing container and creating viewer');
         viewerContainer.innerHTML = '';
         await viewarr.createViewer(viewerId);
-        console.log('[FITSViewer] Viewer created, hasViewer:', viewarr.hasViewer(viewerId));
+        console.log(
+          '[FITSViewer] Viewer created, hasViewer:',
+          viewarr.hasViewer(viewerId)
+        );
       } else {
         console.warn('[FITSViewer] No viewer container!');
       }
@@ -634,9 +675,11 @@ export class FITSPanel extends Widget {
     this._sliceControlsContainer.innerHTML = html;
 
     // Attach event listeners
-    const buttons = this._sliceControlsContainer.querySelectorAll('.jp-FITSViewer-sliceButton');
+    const buttons = this._sliceControlsContainer.querySelectorAll(
+      '.jp-FITSViewer-sliceButton'
+    );
     buttons.forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', e => {
         const target = e.currentTarget as HTMLElement;
         const axis = parseInt(target.dataset.axis || '0', 10);
         const direction = target.dataset.direction;
@@ -656,7 +699,10 @@ export class FITSPanel extends Widget {
 
     const { shape, sliceIndices } = sliceState;
     const axisSize = shape[axis];
-    const newIndex = Math.max(0, Math.min(axisSize - 1, sliceIndices[axis] + delta));
+    const newIndex = Math.max(
+      0,
+      Math.min(axisSize - 1, sliceIndices[axis] + delta)
+    );
 
     if (newIndex !== sliceIndices[axis]) {
       sliceState.sliceIndices[axis] = newIndex;
@@ -686,17 +732,23 @@ export class FITSPanel extends Widget {
     const { shape, sliceIndices } = sliceState;
 
     // Build slice string: for leading axes use current index, for image axes use full extent
-    const slices = shape.map((size, i) => {
-      if (i < shape.length - 2) {
-        const idx = sliceIndices[i];
-        return `${idx}:${idx + 1}`;
-      }
-      return `0:${size}`;
-    }).join(',');
+    const slices = shape
+      .map((size, i) => {
+        if (i < shape.length - 2) {
+          const idx = sliceIndices[i];
+          return `${idx}:${idx + 1}`;
+        }
+        return `0:${size}`;
+      })
+      .join(',');
 
     try {
       const path = this._context.path;
-      const { buffer, shape: resultShape, arrayType } = await requestBinaryAPI(
+      const {
+        buffer,
+        shape: resultShape,
+        arrayType
+      } = await requestBinaryAPI(
         `slice?path=${encodeURIComponent(path)}&hdu=${hduIndex}&slices=${encodeURIComponent(slices)}`
       );
 
