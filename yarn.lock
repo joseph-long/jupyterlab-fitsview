@@ -10559,8 +10559,8 @@ __metadata:
 
 "viewarr@file:./viewarr/pkg::locator=fitsview%40workspace%3A.":
   version: 0.1.0
-  resolution: "viewarr@file:./viewarr/pkg#./viewarr/pkg::hash=dea838&locator=fitsview%40workspace%3A."
-  checksum: 6f8626484dcfcde1ce96e3dfa597bbcd7166082df315e942c68d97e9bcfdb63212feaecaf05a28327ab8e9087bc8514f9b5a941750597420841231c3a0d083ac
+  resolution: "viewarr@file:./viewarr/pkg#./viewarr/pkg::hash=1dd159&locator=fitsview%40workspace%3A."
+  checksum: e6b0349f99e3951bc79ed7548ce64167dc990c105bcf9e212b226f4daaaa4d4cac9130febdf4e71e8d85944f250457ab74d5ec5c1e40c8991fe5bc484a21e209
   languageName: node
   linkType: hard
 

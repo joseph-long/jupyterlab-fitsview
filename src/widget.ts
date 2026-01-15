@@ -132,7 +132,7 @@ export class FITSPanel extends Widget {
       return;
     }
 
-    const { path, hdus } = this._metadata;
+    const { hdus } = this._metadata;
 
     // Find all viewable HDUs (2D+ data with known array type)
     const viewableHdus = hdus.filter(
@@ -159,45 +159,52 @@ export class FITSPanel extends Widget {
       `;
     }
 
-    // Create main layout with viewer panel and metadata panel
+    // Build HDU buttons for horizontal bar (all HDUs, viewable or not)
+    let hduButtonsHtml = '';
+    for (const hdu of hdus) {
+      const isViewable = hdu.shape && hdu.shape.length >= 2 && hdu.arrayType;
+      const hduName = hdu.name || `HDU ${hdu.index}`;
+      
+      // Build info line: shape × type, row count, or dash
+      let infoStr: string;
+      if (hdu.shape && hdu.shape.length >= 2 && hdu.arrayType) {
+        // Image data: show dimensions and type
+        infoStr = `${hdu.shape.join('×')} [${hdu.arrayType}]`;
+      } else if (hdu.shape && hdu.shape.length === 1) {
+        // Table data: show row count
+        infoStr = `${hdu.shape[0]} rows`;
+      } else {
+        // No data
+        infoStr = '—';
+      }
+
+      const buttonClass = isViewable 
+        ? 'jp-FITSViewer-hduButton' 
+        : 'jp-FITSViewer-hduButton jp-FITSViewer-hduButton-disabled';
+      const disabledAttr = isViewable ? '' : 'disabled';
+
+      hduButtonsHtml += `
+        <button class="${buttonClass}" data-hdu="${hdu.index}" ${disabledAttr}>
+          <div class="jp-FITSViewer-hduContent">
+            <span class="jp-FITSViewer-hduName">${hdu.index}: ${hduName}</span>
+            <span class="jp-FITSViewer-hduInfo">${infoStr}</span>
+          </div>
+          <a href="#" class="jp-FITSViewer-headerIcon" data-hdu="${hdu.index}" title="View Header">ⓘ</a>
+        </button>
+      `;
+    }
+
+    // Create main layout with HDU bar, slice controls, and viewer (no sidebar)
     let html = `
       <div class="jp-FITSViewer-layout">
         <div class="jp-FITSViewer-viewerPanel">
-          <div id="${this._baseViewerId}-controls" class="jp-FITSViewer-sliceControls"></div>
+          <div class="jp-FITSViewer-controlBar">
+            <div class="jp-FITSViewer-hduBar">${hduButtonsHtml}</div>
+            <div id="${this._baseViewerId}-controls" class="jp-FITSViewer-sliceControls"></div>
+          </div>
           <div class="jp-FITSViewer-viewerStack">
             ${viewerContainersHtml}
           </div>
-        </div>
-        <div class="jp-FITSViewer-metadataPanel">
-          <h2>${path}</h2>
-    `;
-
-    for (const hdu of hdus) {
-      const isViewable = hdu.shape && hdu.shape.length >= 2 && hdu.arrayType;
-      const hduClass = isViewable ? 'jp-FITSViewer-hdu jp-FITSViewer-hdu-viewable' : 'jp-FITSViewer-hdu';
-
-      html += `
-        <div class="${hduClass}" data-hdu="${hdu.index}">
-          <h3>${hdu.index}: ${hdu.name || '(unnamed)'} ${hdu.type}</h3>
-      `;
-
-      if (hdu.shape) {
-        html += `
-          <p>${hdu.shape.join(' × ')} [${hdu.arrayType}]</p>
-        `;
-      } else {
-        html += `<p><em>No data in this HDU</em></p>`;
-      }
-
-      // Show header as a link that opens in a new window
-      if (hdu.header) {
-        html += `<a href="#" class="jp-FITSViewer-headerLink" data-hdu="${hdu.index}">View Header</a>`;
-      }
-
-      html += `</div>`;
-    }
-
-    html += `
         </div>
       </div>
     `;
@@ -222,26 +229,26 @@ export class FITSPanel extends Widget {
       this._autoDisplayFirstHDU();
     });
 
-    // Attach event listeners to viewable HDU entries for selection
-    const viewableHduElements = this._content.querySelectorAll('.jp-FITSViewer-hdu-viewable');
-    viewableHduElements.forEach(el => {
-      el.addEventListener('click', (e) => {
-        // Don't trigger if clicking on a link
-        if ((e.target as HTMLElement).tagName === 'A') {
+    // Attach event listeners to HDU buttons for selection
+    const hduButtons = this._content.querySelectorAll('.jp-FITSViewer-hduButton');
+    hduButtons.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        // Don't trigger if clicking on the header icon
+        if ((e.target as HTMLElement).classList.contains('jp-FITSViewer-headerIcon')) {
           return;
         }
-        const hduIndex = parseInt((el as HTMLElement).dataset.hdu || '0', 10);
+        const hduIndex = parseInt((btn as HTMLElement).dataset.hdu || '0', 10);
         void this._switchToHDU(hduIndex);
       });
     });
 
-    // Attach event listeners to header links
-    const headerLinks = this._content.querySelectorAll('.jp-FITSViewer-headerLink');
-    headerLinks.forEach(link => {
-      link.addEventListener('click', (e) => {
+    // Attach event listeners to header icons
+    const headerIcons = this._content.querySelectorAll('.jp-FITSViewer-headerIcon');
+    headerIcons.forEach(icon => {
+      icon.addEventListener('click', (e) => {
         e.preventDefault();
-        const target = e.target as HTMLElement;
-        const hduIndex = parseInt(target.dataset.hdu || '0', 10);
+        e.stopPropagation();
+        const hduIndex = parseInt((icon as HTMLElement).dataset.hdu || '0', 10);
         this._openHeaderWindow(hduIndex);
       });
     });
@@ -261,9 +268,9 @@ export class FITSPanel extends Widget {
       if (currentContainer) {
         currentContainer.style.display = 'none';
       }
-      // Remove active class from current HDU entry
-      const currentHduEl = this._content.querySelector(`.jp-FITSViewer-hdu[data-hdu="${this._activeHduIndex}"]`);
-      currentHduEl?.classList.remove('jp-FITSViewer-hdu-active');
+      // Remove active class from current HDU button
+      const currentHduBtn = this._content.querySelector(`.jp-FITSViewer-hduButton[data-hdu="${this._activeHduIndex}"]`);
+      currentHduBtn?.classList.remove('jp-FITSViewer-hduButton-active');
     }
 
     // Show the new viewer container
@@ -272,9 +279,9 @@ export class FITSPanel extends Widget {
       newContainer.style.display = 'flex';
     }
 
-    // Add active class to new HDU entry
-    const newHduEl = this._content.querySelector(`.jp-FITSViewer-hdu[data-hdu="${hduIndex}"]`);
-    newHduEl?.classList.add('jp-FITSViewer-hdu-active');
+    // Add active class to new HDU button
+    const newHduBtn = this._content.querySelector(`.jp-FITSViewer-hduButton[data-hdu="${hduIndex}"]`);
+    newHduBtn?.classList.add('jp-FITSViewer-hduButton-active');
 
     this._activeHduIndex = hduIndex;
 
