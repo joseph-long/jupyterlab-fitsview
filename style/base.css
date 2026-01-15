@@ -128,6 +128,46 @@
   border: 1px solid var(--jp-border-color1);
 }
 
+.jp-FITSViewer-hdu-viewable {
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.jp-FITSViewer-hdu-viewable:hover {
+  border-color: var(--jp-brand-color1);
+  background: var(--jp-layout-color2);
+}
+
+.jp-FITSViewer-hdu-active {
+  border-color: var(--jp-brand-color1);
+  border-width: 2px;
+  background: var(--jp-layout-color2);
+}
+
+.jp-FITSViewer-viewerStack {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+
+.jp-FITSViewer-viewerStack .jp-FITSViewer-viewerContainer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.jp-FITSViewer-headerLink {
+  color: var(--jp-content-link-color);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.jp-FITSViewer-headerLink:hover {
+  text-decoration: underline;
+}
+
 .jp-FITSViewer-headerTable {
   font-size: 0.85em;
   border-collapse: collapse;

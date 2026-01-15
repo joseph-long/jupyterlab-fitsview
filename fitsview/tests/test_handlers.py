@@ -75,7 +75,6 @@ class TestMetadataHandler:
         data = json.loads(response.body)
 
         assert data["path"] == fits_file
-        assert data["n_extensions"] == 3
 
         # Check primary HDU
         hdus = data["hdus"]

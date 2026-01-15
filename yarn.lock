@@ -6317,7 +6317,7 @@ __metadata:
     stylelint-csstree-validator: ^3.0.0
     stylelint-prettier: ^4.0.0
     typescript: ~5.5.4
-    viewarr: "file:../viewarr/pkg"
+    viewarr: "file:./viewarr/pkg"
     yjs: ^13.5.0
   languageName: unknown
   linkType: soft
@@ -10557,10 +10557,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"viewarr@file:../viewarr/pkg::locator=fitsview%40workspace%3A.":
+"viewarr@file:./viewarr/pkg::locator=fitsview%40workspace%3A.":
   version: 0.1.0
-  resolution: "viewarr@file:../viewarr/pkg#../viewarr/pkg::hash=c1b382&locator=fitsview%40workspace%3A."
-  checksum: f5da077d604c115dba21b7309e4861f5f540091f235b391415a0e9a3d5a2b3e84435b6fde99a6286cba3298dc2cc75f9c2ff0dc78c6048017d9ad77055e94f05
+  resolution: "viewarr@file:./viewarr/pkg#./viewarr/pkg::hash=dea838&locator=fitsview%40workspace%3A."
+  checksum: 6f8626484dcfcde1ce96e3dfa597bbcd7166082df315e942c68d97e9bcfdb63212feaecaf05a28327ab8e9087bc8514f9b5a941750597420841231c3a0d083ac
   languageName: node
   linkType: hard
 

@@ -68,7 +68,6 @@ Returns metadata for a FITS file.
 
 **Response:** JSON object with:
 - `path`: File path
-- `n_extensions`: Number of HDUs
 - `hdus`: Array of HDU info (index, name, type, header, shape, dtype)
 
 ### GET `/fitsview/slice`
@@ -136,12 +135,15 @@ cd fitsview
 # Or if already cloned without submodules:
 git submodule update --init --recursive
 
-# Create and activate a virtual environment
+# Create a virtual environment
 python -m venv .venv
+# Install the package in development mode with all dependencies
+.venv/bin/pip install -e '.[test]'
+# activate virtual environment
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Install the package in development mode with all dependencies
-pip install -e ".[dev]"
+# Check to make sure jlpm is coming from inside the virtualenv (should end with '.venv/bin/jlpm')
+which jlpm
 
 # Install JavaScript dependencies
 jlpm install
@@ -152,8 +154,11 @@ jlpm build
 # Link the extension to JupyterLab (creates symlink)
 jupyter labextension develop . --overwrite
 
-# Enable the server extension (if not auto-enabled)
-jupyter server extension enable fitsview
+# Verify the labextension is 'enabled OK' and points to the .venv folder
+jupyter labextension list
+
+# Verify the server extension is enabled and coming from the .venv folder too
+jupyter server extension list
 ```
 
 #### Development with Auto-Rebuild

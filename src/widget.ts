@@ -9,7 +9,6 @@ import {
   requestAPI,
   requestBinaryAPI,
   requestBinaryAPIWithProgress,
-  createTypedArray,
   ArrayType,
   calculateSliceByteSize,
   formatByteSize
@@ -34,7 +33,6 @@ const viewarrPromise = import('viewarr')
  */
 export interface IFITSMetadata {
   path: string;
-  n_extensions: number;
   hdus: IHDUInfo[];
 }
 
@@ -72,20 +70,23 @@ interface ISliceState {
  */
 export class FITSPanel extends Widget {
   private static _instanceCounter = 0;
-  private _viewerId: string;
-  private _viewerContainer: HTMLDivElement | null = null;
-  private _sliceState: ISliceState | null = null;
+  private _baseViewerId: string;
+  // Map of HDU index to viewer container element
+  private _viewerContainers: Map<number, HTMLDivElement> = new Map();
+  // Map of HDU index to slice state
+  private _sliceStates: Map<number, ISliceState> = new Map();
+  // Currently active HDU index
+  private _activeHduIndex: number | null = null;
   private _sliceControlsContainer: HTMLDivElement | null = null;
   private _fetchAbortController: AbortController | null = null;
-  private _viewerInitialized = false;
 
   constructor(context: DocumentRegistry.IContext<DocumentModel>) {
     super();
     this._context = context;
     this.addClass('jp-FITSViewer');
 
-    // Generate unique viewer ID
-    this._viewerId = `fitsview-${FITSPanel._instanceCounter++}`;
+    // Generate unique base viewer ID (each HDU will get its own suffix)
+    this._baseViewerId = `fitsview-${FITSPanel._instanceCounter++}`;
 
     // Create content container
     this._content = document.createElement('div');
@@ -96,6 +97,13 @@ export class FITSPanel extends Widget {
     void context.ready.then(() => {
       void this._loadMetadata();
     });
+  }
+
+  /**
+   * Get viewer ID for a specific HDU
+   */
+  private _getViewerId(hduIndex: number): string {
+    return `${this._baseViewerId}-hdu${hduIndex}`;
   }
 
   /**
@@ -124,63 +132,66 @@ export class FITSPanel extends Widget {
       return;
     }
 
-    const { path, n_extensions, hdus } = this._metadata;
+    const { path, hdus } = this._metadata;
+
+    // Find all viewable HDUs (2D+ data with known array type)
+    const viewableHdus = hdus.filter(
+      hdu => hdu.shape && hdu.shape.length >= 2 && hdu.arrayType
+    );
+
+    // Create viewer containers HTML for each viewable HDU
+    let viewerContainersHtml = '';
+    for (const hdu of viewableHdus) {
+      const viewerId = this._getViewerId(hdu.index);
+      viewerContainersHtml += `
+        <div id="${viewerId}" class="jp-FITSViewer-viewerContainer" data-hdu="${hdu.index}" style="display: none;">
+          <div class="jp-FITSViewer-viewerPlaceholder">Loading...</div>
+        </div>
+      `;
+    }
+
+    // If no viewable HDUs, show a placeholder
+    if (viewableHdus.length === 0) {
+      viewerContainersHtml = `
+        <div class="jp-FITSViewer-viewerContainer">
+          <div class="jp-FITSViewer-viewerPlaceholder">No viewable image data</div>
+        </div>
+      `;
+    }
 
     // Create main layout with viewer panel and metadata panel
     let html = `
       <div class="jp-FITSViewer-layout">
         <div class="jp-FITSViewer-viewerPanel">
-          <div id="${this._viewerId}-controls" class="jp-FITSViewer-sliceControls"></div>
-          <div id="${this._viewerId}" class="jp-FITSViewer-viewerContainer">
-            <div class="jp-FITSViewer-viewerPlaceholder">Select an HDU to view</div>
+          <div id="${this._baseViewerId}-controls" class="jp-FITSViewer-sliceControls"></div>
+          <div class="jp-FITSViewer-viewerStack">
+            ${viewerContainersHtml}
           </div>
         </div>
         <div class="jp-FITSViewer-metadataPanel">
-          <h2>FITS File: ${path}</h2>
-          <p><strong>Number of HDUs:</strong> ${n_extensions}</p>
-          <hr/>
+          <h2>${path}</h2>
     `;
 
     for (const hdu of hdus) {
+      const isViewable = hdu.shape && hdu.shape.length >= 2 && hdu.arrayType;
+      const hduClass = isViewable ? 'jp-FITSViewer-hdu jp-FITSViewer-hdu-viewable' : 'jp-FITSViewer-hdu';
+
       html += `
-        <div class="jp-FITSViewer-hdu">
-          <h3>HDU ${hdu.index}: ${hdu.name || '(unnamed)'}</h3>
-          <p><strong>Type:</strong> ${hdu.type}</p>
+        <div class="${hduClass}" data-hdu="${hdu.index}">
+          <h3>${hdu.index}: ${hdu.name || '(unnamed)'} ${hdu.type}</h3>
       `;
 
       if (hdu.shape) {
         html += `
-          <p><strong>Shape:</strong> ${hdu.shape.join(' × ')}</p>
-          <p><strong>Array type:</strong> ${hdu.arrayType}</p>
+          <p>${hdu.shape.join(' × ')} [${hdu.arrayType}]</p>
         `;
-
-        // Add a test slice button for any data with shape
-        if (hdu.shape.length >= 1) {
-          // Build slice ranges for each axis, taking min(10, axis_size) for each
-          const sliceRanges = hdu.shape.map(size => `0:${Math.min(10, size)}`);
-          const slicesStr = sliceRanges.join(',');
-          const displayShape = hdu.shape.map(size => Math.min(10, size)).join(' × ');
-          html += `
-            <button class="jp-FITSViewer-sliceButton"
-                    data-hdu="${hdu.index}"
-                    data-slices="${slicesStr}">
-              Test slice [${slicesStr}] (${displayShape})
-            </button>
-            <pre class="jp-FITSViewer-sliceResult" id="slice-result-${hdu.index}"></pre>
-          `;
-        }
       } else {
         html += `<p><em>No data in this HDU</em></p>`;
       }
 
-      // Show header as raw 80-column FITS format (monospace)
+      // Show header as a link that opens in a new window
       if (hdu.header) {
-        // Escape HTML entities in the header string
-        const escapedHeader = String(hdu.header)
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
-        html += `<details><summary>Header</summary><pre class="jp-FITSViewer-headerPre">${escapedHeader}</pre></details>`;
+        html += `<a href="#" class="jp-FITSViewer-headerLink" data-hdu="${hdu.index}">View Header</a>`;
       }
 
       html += `</div>`;
@@ -193,42 +204,154 @@ export class FITSPanel extends Widget {
 
     this._content.innerHTML = html;
 
-    // Store references to containers
-    this._viewerContainer = document.getElementById(this._viewerId) as HTMLDivElement;
-    this._sliceControlsContainer = document.getElementById(`${this._viewerId}-controls`) as HTMLDivElement;
+    // Store references to viewer containers for each viewable HDU
+    this._viewerContainers.clear();
+    for (const hdu of viewableHdus) {
+      const viewerId = this._getViewerId(hdu.index);
+      const container = document.getElementById(viewerId) as HTMLDivElement;
+      if (container) {
+        this._viewerContainers.set(hdu.index, container);
+      }
+    }
 
-    // Initialize the viewer and then auto-display first viewable HDU
-    void this._initializeViewer().then(() => {
+    this._sliceControlsContainer = document.getElementById(`${this._baseViewerId}-controls`) as HTMLDivElement;
+
+    // Wait for viewarr to be ready, then auto-display first viewable HDU
+    // Note: We don't create the viewer here - it's created on-demand when needed
+    void viewarrPromise.then(() => {
       this._autoDisplayFirstHDU();
     });
 
-    // Attach event listeners to slice buttons
-    const buttons = this._content.querySelectorAll('.jp-FITSViewer-sliceButton');
-    buttons.forEach(btn => {
-      btn.addEventListener('click', (e) => {
+    // Attach event listeners to viewable HDU entries for selection
+    const viewableHduElements = this._content.querySelectorAll('.jp-FITSViewer-hdu-viewable');
+    viewableHduElements.forEach(el => {
+      el.addEventListener('click', (e) => {
+        // Don't trigger if clicking on a link
+        if ((e.target as HTMLElement).tagName === 'A') {
+          return;
+        }
+        const hduIndex = parseInt((el as HTMLElement).dataset.hdu || '0', 10);
+        void this._switchToHDU(hduIndex);
+      });
+    });
+
+    // Attach event listeners to header links
+    const headerLinks = this._content.querySelectorAll('.jp-FITSViewer-headerLink');
+    headerLinks.forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
         const target = e.target as HTMLElement;
-        const hdu = parseInt(target.dataset.hdu || '0', 10);
-        const slices = target.dataset.slices || '0:10,0:10';
-        void this._fetchSlice(hdu, slices);
+        const hduIndex = parseInt(target.dataset.hdu || '0', 10);
+        this._openHeaderWindow(hduIndex);
       });
     });
   }
 
   /**
-   * Initialize the viewarr WASM viewer
+   * Switch to displaying a different HDU
    */
-  private async _initializeViewer(): Promise<void> {
-    await viewarrPromise;
+  private async _switchToHDU(hduIndex: number): Promise<void> {
+    if (this._activeHduIndex === hduIndex) {
+      return; // Already showing this HDU
+    }
 
-    if (!viewarr || !this._viewerContainer) {
+    // Hide the current viewer container
+    if (this._activeHduIndex !== null) {
+      const currentContainer = this._viewerContainers.get(this._activeHduIndex);
+      if (currentContainer) {
+        currentContainer.style.display = 'none';
+      }
+      // Remove active class from current HDU entry
+      const currentHduEl = this._content.querySelector(`.jp-FITSViewer-hdu[data-hdu="${this._activeHduIndex}"]`);
+      currentHduEl?.classList.remove('jp-FITSViewer-hdu-active');
+    }
+
+    // Show the new viewer container
+    const newContainer = this._viewerContainers.get(hduIndex);
+    if (newContainer) {
+      newContainer.style.display = 'flex';
+    }
+
+    // Add active class to new HDU entry
+    const newHduEl = this._content.querySelector(`.jp-FITSViewer-hdu[data-hdu="${hduIndex}"]`);
+    newHduEl?.classList.add('jp-FITSViewer-hdu-active');
+
+    this._activeHduIndex = hduIndex;
+
+    // Load the HDU image (will create viewer if needed, or use existing)
+    await this._viewHDUImage(hduIndex);
+  }
+
+  /**
+   * Open HDU header in a new window
+   */
+  private _openHeaderWindow(hduIndex: number): void {
+    const hdu = this._metadata?.hdus.find(h => h.index === hduIndex);
+    if (!hdu || !hdu.header) {
       return;
     }
 
+    const fileName = this._context.path.split('/').pop() || 'file';
+    const hduName = hdu.name || `HDU ${hduIndex}`;
+    const title = `${fileName} - ${hduName} Header`;
+
+    // Create a new window with the header content
+    const headerWindow = window.open('', '_blank', 'width=800,height=600');
+    if (headerWindow) {
+      headerWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>${title}</title>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 16px;
+      margin: 0;
+      background: #1e1e1e;
+      color: #d4d4d4;
+    }
+    pre {
+      white-space: pre;
+      margin: 0;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+<pre>${hdu.header.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+</body>
+</html>`);
+      headerWindow.document.close();
+    }
+  }
+
+  /**
+   * Ensure the viewarr viewer exists for a specific HDU, creating it if necessary.
+   * Call this before any operation that needs the viewer.
+   */
+  private async _ensureViewer(hduIndex: number): Promise<boolean> {
+    await viewarrPromise;
+
+    const viewerContainer = this._viewerContainers.get(hduIndex);
+    const viewerId = this._getViewerId(hduIndex);
+
+    if (!viewarr || !viewerContainer) {
+      return false;
+    }
+
+    // If viewer already exists, we're good
+    if (viewarr.hasViewer(viewerId)) {
+      return true;
+    }
+
     try {
-      await viewarr.createViewer(this._viewerId);
-      this._viewerInitialized = true;
+      // Clear any placeholder content
+      viewerContainer.innerHTML = '';
+      await viewarr.createViewer(viewerId);
+      return true;
     } catch (error) {
-      console.error('Failed to initialize viewarr:', error);
+      console.error('Failed to create viewarr viewer:', error);
+      return false;
     }
   }
 
@@ -236,7 +359,7 @@ export class FITSPanel extends Widget {
    * Automatically display the first HDU with viewable 2D+ data
    */
   private _autoDisplayFirstHDU(): void {
-    if (!this._metadata || !viewarr || !viewarr.hasViewer(this._viewerId)) {
+    if (!this._metadata || !viewarr) {
       return;
     }
 
@@ -246,7 +369,7 @@ export class FITSPanel extends Widget {
     );
 
     if (viewableHDU) {
-      void this._viewHDUImage(viewableHDU.index);
+      void this._switchToHDU(viewableHDU.index);
     }
   }
 
@@ -254,8 +377,8 @@ export class FITSPanel extends Widget {
    * View full HDU image in the viewer
    */
   private async _viewHDUImage(hduIndex: number): Promise<void> {
-    if (!viewarr || !viewarr.hasViewer(this._viewerId)) {
-      console.warn('Viewer not available');
+    if (!viewarr) {
+      console.warn('viewarr not available');
       return;
     }
 
@@ -267,17 +390,26 @@ export class FITSPanel extends Widget {
     const shape = hdu.shape;
     const numLeadingAxes = shape.length - 2;
 
-    // Initialize or update slice state
-    if (!this._sliceState || this._sliceState.hduIndex !== hduIndex) {
-      this._sliceState = {
+    // Get or create slice state for this HDU
+    let sliceState = this._sliceStates.get(hduIndex);
+    if (!sliceState) {
+      sliceState = {
         hduIndex,
         shape,
         sliceIndices: new Array(numLeadingAxes).fill(0)
       };
+      this._sliceStates.set(hduIndex, sliceState);
     }
 
-    // Render slice controls if we have leading axes
+    // Render slice controls for this HDU
     this._renderSliceControls();
+
+    // Check if viewer already has data loaded (don't re-fetch if switching back)
+    const viewerId = this._getViewerId(hduIndex);
+    if (viewarr.hasViewer(viewerId)) {
+      // Viewer exists and has data, no need to fetch
+      return;
+    }
 
     // Calculate the byte size for the 2D slice
     const sliceByteSize = calculateSliceByteSize(shape, hdu.arrayType);
@@ -292,15 +424,36 @@ export class FITSPanel extends Widget {
   }
 
   /**
+   * Get the current slice state for the active HDU
+   */
+  private _getActiveSliceState(): ISliceState | undefined {
+    if (this._activeHduIndex === null) {
+      return undefined;
+    }
+    return this._sliceStates.get(this._activeHduIndex);
+  }
+
+  /**
+   * Get the viewer container for the active HDU
+   */
+  private _getActiveViewerContainer(): HTMLDivElement | undefined {
+    if (this._activeHduIndex === null) {
+      return undefined;
+    }
+    return this._viewerContainers.get(this._activeHduIndex);
+  }
+
+  /**
    * Show a prompt for large images with fetch button and progress UI
    */
   private _showLargeImagePrompt(byteSize: number): void {
-    if (!this._viewerContainer) {
+    const viewerContainer = this._getActiveViewerContainer();
+    if (!viewerContainer) {
       return;
     }
 
     const sizeStr = formatByteSize(byteSize);
-    this._viewerContainer.innerHTML = `
+    viewerContainer.innerHTML = `
       <div class="jp-FITSViewer-largeImagePrompt">
         <p>This image slice is <strong>${sizeStr}</strong>, which exceeds the auto-fetch limit.</p>
         <button class="jp-FITSViewer-fetchButton jp-mod-styled">
@@ -318,11 +471,11 @@ export class FITSPanel extends Widget {
       </div>
     `;
 
-    const fetchButton = this._viewerContainer.querySelector('.jp-FITSViewer-fetchButton') as HTMLButtonElement;
-    const progressContainer = this._viewerContainer.querySelector('.jp-FITSViewer-progressContainer') as HTMLDivElement;
-    const progressFill = this._viewerContainer.querySelector('.jp-FITSViewer-progressFill') as HTMLDivElement;
-    const progressText = this._viewerContainer.querySelector('.jp-FITSViewer-progressText') as HTMLSpanElement;
-    const cancelButton = this._viewerContainer.querySelector('.jp-FITSViewer-cancelButton') as HTMLButtonElement;
+    const fetchButton = viewerContainer.querySelector('.jp-FITSViewer-fetchButton') as HTMLButtonElement;
+    const progressContainer = viewerContainer.querySelector('.jp-FITSViewer-progressContainer') as HTMLDivElement;
+    const progressFill = viewerContainer.querySelector('.jp-FITSViewer-progressFill') as HTMLDivElement;
+    const progressText = viewerContainer.querySelector('.jp-FITSViewer-progressText') as HTMLSpanElement;
+    const cancelButton = viewerContainer.querySelector('.jp-FITSViewer-cancelButton') as HTMLButtonElement;
 
     fetchButton.addEventListener('click', () => {
       fetchButton.style.display = 'none';
@@ -351,11 +504,21 @@ export class FITSPanel extends Widget {
     progressText: HTMLSpanElement,
     progressContainer: HTMLDivElement
   ): Promise<void> {
-    if (!this._sliceState || !viewarr || !viewarr.hasViewer(this._viewerId)) {
+    const sliceState = this._getActiveSliceState();
+    const viewerContainer = this._getActiveViewerContainer();
+    const hduIndex = this._activeHduIndex;
+
+    console.log('[FITSViewer] _fetchAndDisplaySliceWithProgress called');
+    console.log('[FITSViewer] sliceState:', sliceState);
+    console.log('[FITSViewer] viewarr:', viewarr);
+
+    if (!sliceState || !viewarr || hduIndex === null) {
+      console.warn('[FITSViewer] Early return: missing sliceState or viewarr');
       return;
     }
 
-    const { hduIndex, shape, sliceIndices } = this._sliceState;
+    const viewerId = this._getViewerId(hduIndex);
+    const { shape, sliceIndices } = sliceState;
 
     // Build slice string
     const slices = shape.map((size, i) => {
@@ -371,6 +534,8 @@ export class FITSPanel extends Widget {
 
     try {
       const path = this._context.path;
+      console.log('[FITSViewer] Fetching slice:', { path, hduIndex, slices });
+
       const { buffer, shape: resultShape, arrayType } = await requestBinaryAPIWithProgress(
         `slice?path=${encodeURIComponent(path)}&hdu=${hduIndex}&slices=${encodeURIComponent(slices)}`,
         (loaded, total) => {
@@ -381,21 +546,28 @@ export class FITSPanel extends Widget {
         this._fetchAbortController.signal
       );
 
+      console.log('[FITSViewer] Fetch complete:', { bufferLength: buffer.byteLength, resultShape, arrayType });
       this._fetchAbortController = null;
 
       // Get image dimensions
       const height = resultShape[resultShape.length - 2] || 1;
       const width = resultShape[resultShape.length - 1] || 1;
+      console.log('[FITSViewer] Image dimensions:', { width, height });
 
-      // Only recreate the viewer on first load (to clear the loading prompt)
-      // Subsequent slice changes should preserve pan/zoom state
-      if (!this._viewerInitialized && this._viewerContainer) {
-        this._viewerContainer.innerHTML = '';
-        await viewarr.createViewer(this._viewerId);
-        this._viewerInitialized = true;
+      // Clear the progress UI and create the viewer
+      // No viewer exists yet since we showed the prompt instead of creating one
+      if (viewerContainer) {
+        console.log('[FITSViewer] Clearing container and creating viewer');
+        viewerContainer.innerHTML = '';
+        await viewarr.createViewer(viewerId);
+        console.log('[FITSViewer] Viewer created, hasViewer:', viewarr.hasViewer(viewerId));
+      } else {
+        console.warn('[FITSViewer] No viewer container!');
       }
 
-      viewarr.setImageData(this._viewerId, buffer, width, height, arrayType);
+      console.log('[FITSViewer] Calling setImageData');
+      viewarr.setImageData(viewerId, buffer, width, height, arrayType);
+      console.log('[FITSViewer] setImageData complete');
     } catch (error) {
       this._fetchAbortController = null;
       if ((error as Error).name === 'AbortError') {
@@ -411,11 +583,12 @@ export class FITSPanel extends Widget {
    * Render slice navigation controls for leading axes
    */
   private _renderSliceControls(): void {
-    if (!this._sliceControlsContainer || !this._sliceState) {
+    const sliceState = this._getActiveSliceState();
+    if (!this._sliceControlsContainer || !sliceState) {
       return;
     }
 
-    const { shape, sliceIndices } = this._sliceState;
+    const { shape, sliceIndices } = sliceState;
     const numLeadingAxes = shape.length - 2;
 
     if (numLeadingAxes === 0) {
@@ -469,16 +642,17 @@ export class FITSPanel extends Widget {
    * Navigate to a different slice along a given axis
    */
   private _navigateSlice(axis: number, delta: number): void {
-    if (!this._sliceState) {
+    const sliceState = this._getActiveSliceState();
+    if (!sliceState) {
       return;
     }
 
-    const { shape, sliceIndices } = this._sliceState;
+    const { shape, sliceIndices } = sliceState;
     const axisSize = shape[axis];
     const newIndex = Math.max(0, Math.min(axisSize - 1, sliceIndices[axis] + delta));
 
     if (newIndex !== sliceIndices[axis]) {
-      this._sliceState.sliceIndices[axis] = newIndex;
+      sliceState.sliceIndices[axis] = newIndex;
       this._renderSliceControls();
       void this._fetchAndDisplaySlice();
     }
@@ -488,11 +662,21 @@ export class FITSPanel extends Widget {
    * Fetch and display the current slice based on slice state
    */
   private async _fetchAndDisplaySlice(): Promise<void> {
-    if (!this._sliceState || !viewarr || !viewarr.hasViewer(this._viewerId)) {
+    const sliceState = this._getActiveSliceState();
+    const hduIndex = this._activeHduIndex;
+
+    if (!sliceState || !viewarr || hduIndex === null) {
       return;
     }
 
-    const { hduIndex, shape, sliceIndices } = this._sliceState;
+    // Ensure viewer exists (creates on-demand)
+    const viewerReady = await this._ensureViewer(hduIndex);
+    if (!viewerReady) {
+      return;
+    }
+
+    const viewerId = this._getViewerId(hduIndex);
+    const { shape, sliceIndices } = sliceState;
 
     // Build slice string: for leading axes use current index, for image axes use full extent
     const slices = shape.map((size, i) => {
@@ -514,71 +698,9 @@ export class FITSPanel extends Widget {
       const width = resultShape[resultShape.length - 1] || 1;
 
       // Use arrayType from response for proper data interpretation
-      viewarr.setImageData(this._viewerId, buffer, width, height, arrayType);
+      viewarr.setImageData(viewerId, buffer, width, height, arrayType);
     } catch (error) {
       console.error('Failed to load slice:', error);
-    }
-  }
-
-  /**
-   * Fetch a data slice from the server
-   *
-   * @param hdu - HDU index
-   * @param slices - Comma-separated slice ranges in NumPy format (e.g., "0:10,5:15")
-   */
-  private async _fetchSlice(
-    hdu: number,
-    slices: string
-  ): Promise<void> {
-    const resultEl = document.getElementById(`slice-result-${hdu}`);
-    if (resultEl) {
-      resultEl.textContent = 'Loading slice...';
-    }
-
-    try {
-      const path = this._context.path;
-      const { buffer, shape, arrayType } = await requestBinaryAPI(
-        `slice?path=${encodeURIComponent(path)}&hdu=${hdu}&slices=${encodeURIComponent(slices)}`
-      );
-
-      // Convert to appropriate TypedArray based on arrayType
-      const data = createTypedArray(buffer, arrayType);
-
-      if (resultEl) {
-        let output = `Shape: ${shape.join(' × ')}\n`;
-        output += `Type: ${arrayType}\n`;
-        output += `Total elements: ${data.length}\n`;
-        output += `Sample values (first 25):\n`;
-
-        // Check if it's a BigInt array
-        const isBigInt =
-          data instanceof BigInt64Array || data instanceof BigUint64Array;
-
-        // Display as 2D grid if possible
-        const displayH = Math.min(5, shape[shape.length - 2] || 1);
-        const displayW = Math.min(5, shape[shape.length - 1] || data.length);
-
-        for (let row = 0; row < displayH; row++) {
-          const rowValues: string[] = [];
-          for (let col = 0; col < displayW; col++) {
-            const idx = row * (shape[shape.length - 1] || displayW) + col;
-            if (idx < data.length) {
-              if (isBigInt) {
-                rowValues.push(data[idx].toString());
-              } else {
-                rowValues.push((data[idx] as number).toFixed(2));
-              }
-            }
-          }
-          output += rowValues.join('\t') + '\n';
-        }
-
-        resultEl.textContent = output;
-      }
-    } catch (error) {
-      if (resultEl) {
-        resultEl.textContent = `Error: ${error}`;
-      }
     }
   }
 
@@ -586,9 +708,14 @@ export class FITSPanel extends Widget {
    * Handle dispose
    */
   protected onCloseRequest(msg: Message): void {
-    // Clean up viewarr instance
-    if (viewarr && viewarr.hasViewer(this._viewerId)) {
-      viewarr.destroyViewer(this._viewerId);
+    // Clean up all viewarr instances
+    if (viewarr) {
+      this._viewerContainers.forEach((_, hduIndex) => {
+        const viewerId = this._getViewerId(hduIndex);
+        if (viewarr!.hasViewer(viewerId)) {
+          viewarr!.destroyViewer(viewerId);
+        }
+      });
     }
     super.onCloseRequest(msg);
     this.dispose();

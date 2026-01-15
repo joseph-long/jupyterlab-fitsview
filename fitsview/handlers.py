@@ -123,7 +123,6 @@ class FITSMetadataHandler(APIHandler):
 
                 result = {
                     'path': path,
-                    'n_extensions': len(hdul),
                     'hdus': hdus
                 }
                 self.finish(json.dumps(result))

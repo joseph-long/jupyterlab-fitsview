@@ -585,3 +585,39 @@ Use these patterns consistently throughout your code:
 ### Essential Commands
 
 See [Development Workflow](#development-workflow) section for full command reference.
+
+## Viewarr (Rust/WASM Image Viewer)
+
+The `viewarr/` directory contains a Rust/WASM image viewer built with egui. This is a separate component that compiles to WebAssembly and is bundled into the JupyterLab extension.
+
+### Building Viewarr
+
+**ALWAYS use the npm scripts in the viewarr package to build WASM:**
+
+```bash
+cd viewarr
+npm run build         # Release build (optimized)
+npm run build:dev     # Debug build (faster compilation, includes debug info)
+```
+
+**❌ Don't**: Run `wasm-pack` directly — the npm scripts handle the wrapper bundling step that copies the JavaScript wrapper files into `pkg/`.
+
+### What the Build Does
+
+1. Compiles Rust to WebAssembly via `wasm-pack`
+2. Copies the JavaScript wrapper (`js/index.js`) to `pkg/wrapper.js`
+3. Updates `pkg/package.json` to point to the wrapper as the entry point
+
+### After Modifying Viewarr
+
+After making changes to Rust code in `viewarr/src/`:
+
+```bash
+cd viewarr && npm run build   # Rebuild WASM
+cd .. && jlpm install         # Copy updated WASM to node_modules (REQUIRED!)
+jlpm build                    # Rebuild JupyterLab extension to bundle new WASM
+```
+
+Then refresh JupyterLab in the browser (or restart if needed).
+
+**⚠️ Important:** The `jlpm install` step is critical! Webpack reads from `node_modules/viewarr/`, not directly from `viewarr/pkg/`. Without this step, the old WASM will be bundled even after rebuilding.
