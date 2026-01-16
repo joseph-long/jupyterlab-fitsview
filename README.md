@@ -1,7 +1,7 @@
 # fitsview
 
-[![Github Actions Status](/workflows/Build/badge.svg)](/actions/workflows/build.yml)
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh//main?urlpath=lab)
+[![Github Actions Status](https://github.com/joseph-long/jupyterlab-fitsview/workflows/Build/badge.svg)](https://github.com/joseph-long/jupyterlab-fitsview/actions/workflows/build.yml)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/joseph-long/jupyterlab-fitsview/main?urlpath=%2Fdoc%2Ftree%2Fexample.fits)
 
 A JupyterLab extension for viewing FITS (Flexible Image Transport System) files without downloading entire files to the browser. This is essential for working with large astronomical datasets.
 
