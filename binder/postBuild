@@ -18,6 +18,7 @@ cargo install wasm-pack
 
 # Build the viewarr WASM component
 cd viewarr && npm run build
+cd ..
 
 # Install/update dependencies and build the JupyterLab extension
 # (jlpm install copies WASM to node_modules; jlpm build bundles everything)
