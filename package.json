@@ -31,6 +31,9 @@
         "type": "git",
         "url": ".git"
     },
+    "workspaces": [
+        "viewarr"
+    ],
     "scripts": {
         "build": "jlpm build:lib && jlpm build:labextension:dev",
         "build:prod": "jlpm clean && jlpm build:lib:prod && jlpm build:labextension",
