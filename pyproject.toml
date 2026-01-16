@@ -89,3 +89,8 @@ before-build-python = ["jlpm clean:all"]
 
 [tool.check-wheel-contents]
 ignore = ["W002"]
+
+[tool.hatch.build.hooks.custom]
+pre-build = [
+    "bash", "-c", "cd viewarr && npm run build && cd .. && jlpm install && jlpm build"
+]
