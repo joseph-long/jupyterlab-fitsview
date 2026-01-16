@@ -1,47 +1,41 @@
-#!/usr/bin/env python3
-""" perform a development install of fitsview
+#!/usr/bin/env bash
+# perform a development install of fitsview
+set -ex  # echo commands, fail on nonzero exit
 
-    On Binder, this will run _after_ the environment has been fully created from
-    the environment.yml in this directory.
+# Initialize git submodules (required for viewarr)
+git submodule update --init --recursive
 
-    This script should also run locally on Linux/MacOS/Windows:
+if ! command -v rustup; then
+    # Install Rust via rustup with default paths/options
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+fi
 
-        python3 binder/postBuild
-"""
-import subprocess
-import sys
-from pathlib import Path
+# Source the Rust environment to make cargo available
+source ~/.cargo/env
 
+# Install wasm-pack via cargo (required for building viewarr WASM)
+cargo install wasm-pack
 
-ROOT = Path.cwd()
+# Build the viewarr WASM component
+cd viewarr && npm run build
 
-def _(*args, **kwargs):
-    """ Run a command, echoing the args
-
-        fails hard if something goes wrong
-    """
-    print("\n\t", " ".join(args), "\n")
-    return_code = subprocess.call(args, **kwargs)
-    if return_code != 0:
-        print("\nERROR", return_code, " ".join(args))
-        sys.exit(return_code)
+# Install/update dependencies and build the JupyterLab extension
+# (jlpm install copies WASM to node_modules; jlpm build bundles everything)
+jlpm install
+jlpm build
 
 # verify the environment is self-consistent before even starting
-_(sys.executable, "-m", "pip", "check")
+python -m pip check
 
 # install the labextension
-_(sys.executable, "-m", "pip", "install", "-e", ".")
-_(sys.executable, "-m", "jupyter", "labextension", "develop", "--overwrite", ".")
+python -m pip install -e .
+python -m jupyter labextension develop --overwrite .
 
 # verify the environment the extension didn't break anything
-_(sys.executable, "-m", "pip", "check")
+python -m pip check
 
 # list the extensions
-_("jupyter", "server", "extension", "list")
+jupyter server extension list
 
 # initially list installed extensions to determine if there are any surprises
-_("jupyter", "labextension", "list")
-
-
-print("JupyterLab with fitsview is ready to run with:\n")
-print("\tjupyter lab\n")
+jupyter labextension list
