@@ -31,7 +31,7 @@ print('Created test.fits')`
 
     // Close the notebook
     await page.menu.clickMenuItem('File>Close Tab');
-    await page.getByRole('button', { name: "Discard" }).click();
+    await page.getByRole('button', { name: 'Discard' }).click();
   });
 
   test('should open FITS file in viewer', async ({ page }) => {
@@ -43,7 +43,9 @@ print('Created test.fits')`
     await expect(viewer).toBeVisible();
 
     // Check that metadata is displayed
-    await expect(viewer.locator('.jp-FITSViewer-hduBar')).toContainText('PRIMARY');
+    await expect(viewer.locator('.jp-FITSViewer-hduBar')).toContainText(
+      'PRIMARY'
+    );
   });
 
   test('should display HDU information', async ({ page }) => {
@@ -64,7 +66,9 @@ print('Created test.fits')`
     await expect(viewer).toBeVisible();
 
     // Check that metadata is displayed
-    await expect(viewer.locator('.jp-FITSViewer-hduBar')).toContainText('PRIMARY');
+    await expect(viewer.locator('.jp-FITSViewer-hduBar')).toContainText(
+      'PRIMARY'
+    );
 
     // Click the test slice button
     const sliceButton = viewer.locator('.jp-FITSViewer-sliceButton').last();

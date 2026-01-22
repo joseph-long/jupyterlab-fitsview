@@ -29,7 +29,8 @@ dependencies = [
     "astropy>=5.0",
     "numpy",
 ]
-dynamic = ["version", "description", "authors", "urls", "keywords"]
+version = "0.1.0dev"
+dynamic = ["description", "authors", "urls", "keywords"]
 
 [project.optional-dependencies]
 test = [
@@ -76,17 +77,6 @@ build_cmd = "install:extension"
 npm = ["jlpm"]
 source_dir = "src"
 build_dir = "fitsview/labextension"
-
-[tool.jupyter-releaser.options]
-version_cmd = "hatch version"
-
-[tool.jupyter-releaser.hooks]
-before-build-npm = [
-    "python -m pip install 'jupyterlab>=4.0.0,<5'",
-    "jlpm",
-    "jlpm build:prod"
-]
-before-build-python = ["jlpm clean:all"]
 
 [tool.check-wheel-contents]
 ignore = ["W002"]
