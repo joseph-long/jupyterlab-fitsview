@@ -296,7 +296,6 @@ The **viewarr** component is a Rust/WebAssembly viewer that provides:
 
 - Hardware-accelerated rendering via WebGL (through egui)
 - Pan and zoom with mouse/trackpad
-- FITS coordinate conventions (Y-axis origin at bottom)
 - Support for multiple data types (uint8, uint16, int16, float32, float64)
 
 ## AI Coding Assistant Support
