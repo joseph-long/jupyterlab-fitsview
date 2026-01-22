@@ -8,7 +8,7 @@ A JupyterLab extension for viewing FITS (Flexible Image Transport System) files 
 ## Features
 
 - **Lazy loading**: Opens FITS files without downloading the full content to the browser
-- **Server-side processing**: Uses astropy on the backend for efficient FITS handling
+- **Handles FITS quirks**: Uses the battle-tested `astropy.io.fits` on the backend
 - **Metadata display**: View HDU headers, shapes, and data types
 - **Data slicing**: Request specific regions of data on demand
 - **Multiple HDU support**: Browse all extensions in a FITS file
