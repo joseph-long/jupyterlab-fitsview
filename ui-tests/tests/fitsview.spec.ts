@@ -18,7 +18,7 @@ test.describe('FITS Viewer Extension', () => {
 import numpy as np
 
 # Create a simple test FITS file
-data = np.random.random((50, 50)).astype(np.float32)
+data = np.random.random((2, 50, 50)).astype(np.float32)
 hdu = fits.PrimaryHDU(data)
 hdu.header['OBJECT'] = 'Test Object'
 hdul = fits.HDUList([hdu])
@@ -31,7 +31,7 @@ print('Created test.fits')`
 
     // Close the notebook
     await page.menu.clickMenuItem('File>Close Tab');
-    await page.getByRole('button', { name: "Don't Save" }).click();
+    await page.getByRole('button', { name: "Discard" }).click();
   });
 
   test('should open FITS file in viewer', async ({ page }) => {
@@ -43,8 +43,7 @@ print('Created test.fits')`
     await expect(viewer).toBeVisible();
 
     // Check that metadata is displayed
-    await expect(viewer.locator('h2')).toContainText('FITS File');
-    await expect(viewer.locator('text=PRIMARY')).toBeVisible();
+    await expect(viewer.locator('.jp-FITSViewer-hduBar')).toContainText('PRIMARY');
   });
 
   test('should display HDU information', async ({ page }) => {
@@ -52,11 +51,10 @@ print('Created test.fits')`
 
     const viewer = page.getByRole('main').locator('.jp-FITSViewer');
     await expect(viewer).toBeVisible();
+    const hduBar = viewer.locator('.jp-FITSViewer-hduBar');
 
     // Check HDU info is shown
-    await expect(viewer.locator('text=PrimaryHDU')).toBeVisible();
-    await expect(viewer.locator('text=Shape')).toBeVisible();
-    await expect(viewer.locator('text=50 × 50')).toBeVisible();
+    await expect(hduBar.locator('text=f32')).toBeVisible();
   });
 
   test('should fetch data slice', async ({ page }) => {
@@ -65,13 +63,15 @@ print('Created test.fits')`
     const viewer = page.getByRole('main').locator('.jp-FITSViewer');
     await expect(viewer).toBeVisible();
 
+    // Check that metadata is displayed
+    await expect(viewer.locator('.jp-FITSViewer-hduBar')).toContainText('PRIMARY');
+
     // Click the test slice button
-    const sliceButton = viewer.locator('.jp-FITSViewer-sliceButton').first();
+    const sliceButton = viewer.locator('.jp-FITSViewer-sliceButton').last();
     await sliceButton.click();
 
-    // Wait for slice result to appear
-    const sliceResult = viewer.locator('.jp-FITSViewer-sliceResult').first();
-    await expect(sliceResult).toContainText('Shape:');
-    await expect(sliceResult).toContainText('Total elements:');
+    // Wait for slice label to update
+    const sliceResult = viewer.locator('.jp-FITSViewer-sliceLabel').first();
+    await expect(sliceResult).toContainText(/.*Plane:\s+2\s+\/\s+2.*/);
   });
 });
