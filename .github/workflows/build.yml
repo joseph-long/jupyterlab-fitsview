@@ -85,7 +85,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: extension-artifacts
-        path: dist/fitsview*
+        path: dist/*
         if-no-files-found: error
 
   test_isolated:
@@ -107,10 +107,7 @@ jobs:
         # Remove NodeJS, twice to take care of system and locally installed node versions.
         sudo rm -rf $(which node)
         sudo rm -rf $(which node)
-
         pip install "jupyterlab>=4.0.0,<5" fitsview*.whl
-
-
         jupyter labextension list
         jupyter labextension list 2>&1 | grep -ie "fitsview.*OK"
         python -m jupyterlab.browser_check --no-browser-test
@@ -176,3 +173,19 @@ jobs:
         path: |
           ui-tests/test-results
           ui-tests/playwright-report
+
+  upload_pypi:
+    needs: [test_isolated, integration-tests]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Display structure of downloaded files
+        run: ls -R
+      - uses: pypa/gh-action-pypi-publish@release/v1
