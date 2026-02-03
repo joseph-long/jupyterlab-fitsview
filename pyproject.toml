@@ -42,10 +42,6 @@ test = [
     "pygments",
 ]
 
-[project.urls]
-homepage = "https://github.com/joseph-long/jupyterlab-fitsview"
-issues = "https://github.com/joseph-long/jupyterlab-fitsview/issues"
-
 [tool.hatch.version]
 source = "nodejs"
 

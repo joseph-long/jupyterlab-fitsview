@@ -10,9 +10,9 @@
         "astronomy",
         "astrophysics"
     ],
-    "homepage": "",
+    "homepage": "https://github.com/joseph-long/jupyterlab-fitsview/",
     "bugs": {
-        "url": "/issues"
+        "url": "https://github.com/joseph-long/jupyterlab-fitsview/issues"
     },
     "license": "BSD-3-Clause",
     "author": {
