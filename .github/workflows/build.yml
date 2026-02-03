@@ -175,7 +175,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: dist
+          name: extension-artifacts
           path: dist
       - name: Display structure of downloaded files
         run: ls -R
