@@ -29,7 +29,7 @@ dependencies = [
     "astropy>=5.0",
     "numpy",
 ]
-version = "0.1.0"
+version = "0.1.1"
 dynamic = ["description", "urls", "authors", "keywords"]
 
 [project.optional-dependencies]
