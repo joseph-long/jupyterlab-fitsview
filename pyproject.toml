@@ -30,7 +30,7 @@ dependencies = [
     "numpy",
 ]
 version = "0.1.0"
-dynamic = ["description", "authors", "urls", "keywords"]
+dynamic = ["description", "authors", "keywords"]
 
 [project.optional-dependencies]
 test = [
@@ -41,6 +41,10 @@ test = [
     "pytest-jupyter[server]>=0.6.0",
     "pygments",
 ]
+
+[project.urls]
+homepage = "https://github.com/joseph-long/jupyterlab-fitsview"
+issues = "https://github.com/joseph-long/jupyterlab-fitsview/issues"
 
 [tool.hatch.version]
 source = "nodejs"
