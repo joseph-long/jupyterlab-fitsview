@@ -29,7 +29,7 @@
     "style": "style/index.css",
     "repository": {
         "type": "git",
-        "url": ".git"
+        "url": "https://github.com/joseph-long/jupyterlab-fitsview.git"
     },
     "workspaces": [
         "viewarr"
