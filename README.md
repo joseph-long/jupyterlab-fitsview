@@ -302,6 +302,8 @@ The **viewarr** component is a Rust/WebAssembly viewer that provides:
 
 This project includes an `AGENTS.md` file with coding standards and best practices for JupyterLab extension development. See [AGENTS.md](AGENTS.md) for details.
 
-## Packaging
+## Changelog
 
-See [RELEASE.md](RELEASE.md) for release instructions.
+### v0.1.0
+
+Initial release.
