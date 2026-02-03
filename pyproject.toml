@@ -29,7 +29,7 @@ dependencies = [
     "astropy>=5.0",
     "numpy",
 ]
-version = "0.1.0dev"
+version = "0.1.0"
 dynamic = ["description", "authors", "urls", "keywords"]
 
 [project.optional-dependencies]
@@ -80,8 +80,3 @@ build_dir = "fitsview/labextension"
 
 [tool.check-wheel-contents]
 ignore = ["W002"]
-
-[tool.hatch.build.hooks.custom]
-pre-build = [
-    "bash", "-c", "cd viewarr && npm run build && cd .. && jlpm install && jlpm build"
-]
